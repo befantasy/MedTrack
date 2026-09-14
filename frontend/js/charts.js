@@ -88,7 +88,7 @@ const ChartsModule = {
         countBadge.textContent = '暂未提取到检验指标';
         countBadge.className = 'badge badge-gray';
       }
-      bar.innerHTML = '<span style="font-size:0.85rem; color:#94a3b8;">暂无历史化验单指标，请前往首页【智能病历提取】上传化验单</span>';
+      bar.innerHTML = '<span style="font-size:0.85rem; color:#94a3b8;">暂无历史化验单指标，请前往【单据识别】上传化验单</span>';
       return;
     }
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>患者病程与就诊汇报单 | 医生/专家查阅专区</title>
+  <title>就诊病程汇报单 | 医生查阅</title>
   <link rel="stylesheet" href="css/style.css?v=2.0">
   <style>
     body { background-color: #f1f5f9; }
@@ -25,7 +25,7 @@
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
       <div style="display:flex; align-items:center; gap:8px;">
         <span style="font-size:24px;">🧬</span>
-        <strong style="font-size:1.1rem; color:#0f172a;">MedTrack 患者病程汇报单</strong>
+        <strong style="font-size:1.1rem; color:#0f172a;">MedTrack 就诊病程汇报单</strong>
         <span class="badge badge-blue">医生查阅只读模式</span>
       </div>
       <div>
@@ -52,7 +52,7 @@
     </div>
   </div>
 
-  <script src="js/api.js?v=2.2"></script>
+  <script src="js/api.js?v=2.3"></script>
   <script>
     function calculateAge(birthDateStr) {
       if (!birthDateStr) return '';
@@ -131,12 +131,12 @@
           if (v.status === 'HIGH') stClass = 'style="color:#ef4444; font-weight:600;"';
           if (v.status === 'LOW') stClass = 'style="color:#f59e0b; font-weight:600;"';
           return `<td ${stClass}>${v.val !== null ? v.val : v.val_text}</td>`;
-        }).join('');
+        });
         return `
           <tr>
             <td><strong>${escapeHtml(row.name)}</strong> (${row.code})</td>
             <td>${escapeHtml(row.ref_range)} ${row.unit}</td>
-            ${cells}
+            ${cells.join('')}
           </tr>
         `;
       }).join('');
@@ -150,7 +150,7 @@
               <h1 style="font-size:1.45rem; font-weight:800; color:#0f172a; display:flex; align-items:center; flex-wrap:wrap; gap:8px;">
                 <span>${escapeHtml(p.name)}</span>
                 ${(p.gender || p.birth_date) ? `<span class="badge" style="background:#e0f2fe; color:#0369a1; font-size:0.85rem; padding:3px 10px; font-weight:600;">👤 ${[p.gender, calculateAge(p.birth_date)].filter(Boolean).join(' · ')}</span>` : ''}
-                <span style="font-size:1rem; font-weight:normal; color:#64748b;">- 肿瘤病程就诊汇报单</span>
+                <span style="font-size:1rem; font-weight:normal; color:#64748b;">- 就诊病程汇报单</span>
               </h1>
               <div style="font-size:0.85rem; color:#64748b; margin-top:4px;">
                 报告生成时间: ${rep.generated_at} | 链接有效至: ${expireTime || '近期'}

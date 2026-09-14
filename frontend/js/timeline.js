@@ -45,7 +45,7 @@ const TimelineModule = {
         <div style="text-align:center; padding:40px 20px; background:#f8fafc; border-radius:12px; border:1px dashed #cbd5e1;">
           <div style="font-size:36px; margin-bottom:10px;">🩺</div>
           <p style="font-weight:600; color:#475569; margin-bottom:6px;">暂无该类别的病程事件记录</p>
-          <p style="font-size:0.88rem; color:#94a3b8;">您可以点击上方“单据智能识别”上传化验单/出院单，或在“专科治疗管理”中手动添加手术与用药周期。</p>
+          <p style="font-size:0.88rem; color:#94a3b8;">您可以点击上方“单据识别”上传化验单/出院单，或在“治疗记录”中手动添加手术与用药记录。</p>
         </div>
       `;
       return;

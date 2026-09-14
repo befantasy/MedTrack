@@ -690,7 +690,7 @@ function renderConsultationReport(rep, container) {
 
   container.innerHTML = `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-      <h2 style="font-size:1.3rem; font-weight:700;">📑 肿瘤专科门诊 / MDT 会诊结构化摘要</h2>
+      <h2 style="font-size:1.3rem; font-weight:700;">📑 门诊就诊与会诊摘要</h2>
       <div style="display:flex; gap:8px;">
         <button class="btn btn-primary" onclick="window.print()">🖨️ 打印 / 导出 PDF</button>
         <button class="btn btn-success" onclick="openCreateShareModal()">🔗 生成 7 天加密分享链接</button>
@@ -700,7 +700,7 @@ function renderConsultationReport(rep, container) {
     <div class="card" style="border-top:4px solid var(--primary); padding:24px;">
       <div style="border-bottom:1px solid #e2e8f0; padding-bottom:14px; margin-bottom:16px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
-          <h1 style="font-size:1.4rem; font-weight:800; color:#0f172a;">${escapeHtml(p.name)} - 肿瘤病程完整汇报单</h1>
+          <h1 style="font-size:1.4rem; font-weight:800; color:#0f172a;">${escapeHtml(p.name)} - 就诊病程汇报单</h1>
           <span style="font-size:0.85rem; color:#64748b;">报告生成时间: ${rep.generated_at}</span>
         </div>
         <div style="font-size:0.92rem; color:#334155; margin-top:8px; display:flex; flex-wrap:wrap; gap:16px;">
@@ -1463,7 +1463,7 @@ const AdminModule = {
 
       const res = await API.updateAISettings(payload);
       await this.loadAISettings();
-      alert(`✅ ${res.message || 'AI 大模型识图引擎配置保存成功！'}\n\n即时生效，现在前往【单据智能识别】上传化验单即可体验真实多模态 AI 解析。`);
+      alert(`✅ ${res.message || 'AI 识别引擎配置保存成功！'}\n\n即时生效，现在前往【单据识别】上传化验单即可体验真实 AI 解析。`);
     } catch (err) {
       alert('保存 AI 配置失败: ' + err.message);
     }
@@ -1698,7 +1698,7 @@ const AdminModule = {
   async inspectDossier(userId) {
     const box = document.getElementById('admin-dossier-content');
     const badge = document.getElementById('dossier-patient-badge');
-    box.innerHTML = `<div style="text-align:center; padding:40px; color:#94a3b8;">正在调阅该患者全生命周期临床病历与检测档案...</div>`;
+    box.innerHTML = `<div style="text-align:center; padding:40px; color:#94a3b8;">正在调阅该患者临床病历与检测档案...</div>`;
     document.getElementById('modal-admin-dossier').style.display = 'flex';
 
     try {
