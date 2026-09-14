@@ -1,28 +1,16 @@
 version: '3.8'
 
 services:
-  # 1. 统一反向代理网关 (服务静态前端、代理API、对接 Cloudflared)
-  med-nginx:
-    image: nginx:alpine
-    container_name: med_nginx
+  # 1. MedTrack-Onco 肿瘤全生命周期与慢病智能管理平台 (一体化容器: 前端Web + 后端API + AI智能解析)
+  medtrack:
+    image: ghcr.io/befantasy/medtrack:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: medtrack
     restart: always
     ports:
-      - "8080:80"  # 宿主机备用访问端口 (如 http://宿主机IP:8080)
-    volumes:
-      - ./frontend:/usr/share/nginx/html:ro
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on:
-      - med-backend
-    networks:
-      - med-net
-
-  # 2. 核心后端与 AI 智能解析引擎
-  med-backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: med_backend
-    restart: always
+      - "${PORT:-6688}:8000"  # 宿主机访问端口，默认 6688
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-meduser}:${POSTGRES_PASSWORD:-med_secure_password_2026}@med-postgres:5432/${POSTGRES_DB:-medtrack_db}
       - JWT_SECRET=${JWT_SECRET:-medtrack-super-secret-key-2026}
@@ -31,14 +19,14 @@ services:
       - AI_MODEL=${AI_MODEL:-gemini-2.0-flash}
       - UPLOAD_DIR=/app/uploads
     volumes:
-      - ./backend/uploads:/app/uploads
+      - ./uploads:/app/uploads
     depends_on:
       med-postgres:
         condition: service_healthy
     networks:
-      - med-net
+      - medtrack-net
 
-  # 3. 结构化数据库 (PostgreSQL 15)
+  # 2. 结构化数据库 (PostgreSQL 15)
   med-postgres:
     image: postgres:15-alpine
     container_name: med_postgres
@@ -55,16 +43,13 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - med-net
+      - medtrack-net
 
 volumes:
   postgres_data:
     driver: local
 
 networks:
-  med-net:
-    name: med-net
+  medtrack-net:
+    name: medtrack-net
     driver: bridge
-    # 注：若需直接与现有的 cloudflared 容器连通，可执行：
-    # docker network connect med-net 您的cloudflared容器名称
-    # 之后在 Cloudflare 隧道控制台将 Service URL 指向: http://med_nginx:80

@@ -2,16 +2,16 @@
 
 > **以肿瘤全生命周期治疗管理为主，其他慢病为辅的现代化自托管个人健康档案（PHR）与就医协作系统。**
 
-支持多用户自主登录、多模态 AI 智能提取（化验单、CT/MRI影像、病理分子报告、出院用药单）、肿瘤全景治疗时间轴、ECharts 标志物与毒副反应趋势看板，以及专为门诊与 MDT 会诊设计的一键病历生成与 7 天加密只读分享。
+支持多用户自主建档、多模态 AI 智能提取（化验单、CT/MRI影像、病理分子报告、出院小结）、肿瘤全景治疗时间轴、ECharts 标志物与毒副反应趋势看板，以及专为门诊与 MDT 会诊设计的一键病历生成与 7 天加密只读分享。
 
-全容器化交付，专为配合 **`cloudflared` 容器隧道** 设计，无需公网 IP 与路由器端口映射即可享受安全 HTTPS 域名访问。
+全容器化一体式架构（FastAPI 单容器整合前端 Web 与后端 API），集成 GitHub Actions 云端多架构自动构建发布，无需在本地编译即可直接在服务器或 NAS 上一键拉取部署。
 
 ---
 
 ## 一、 核心功能特色
 
 1. **多用户与肿瘤专科建档**：
-   * 用户独立注册登录（基于加盐哈希与 JWT 鉴权），数据多租户严格物理/逻辑隔离。
+   * 用户独立注册登录（基于加盐哈希与 JWT 鉴权），数据多租户严格隔离。
    * 专科肿瘤档案：原发部位、病理类型、初诊分期（TNM）、当前分期、分子驱动基因/靶点（EGFR/ALK/KRAS/PD-L1等）、合并慢病（高血压/糖尿病等）与过敏史。
 2. **专科治疗全要素登记**：
    * **外科手术**：术式名称、手术日期、切缘（R0/R1/R2）、淋巴结清扫枚数与转移比率、术后病理总结。
@@ -36,31 +36,24 @@
 
 ```
 MedTrack/
-├── docker-compose.yml              # 统一容器编排 (Nginx + Backend + Postgres)
-├── .env.example                    # 环境变量模版 (API Key, DB配置, JWT密钥)
+├── .github/workflows/
+│   └── docker-publish.yml          # GitHub Actions 云端多架构镜像自动构建与发布流水线
+├── Dockerfile                      # 一体化镜像 Dockerfile (集成后端API与前端静态Web)
+├── docker-compose.yml              # 统一容器编排 (MedTrack 一体化服务 + Postgres)
+├── .env.example                    # 环境变量模版 (端口、API Key、DB配置、JWT密钥)
 ├── README.md                       # 部署与使用完整文档
-├── nginx/
-│   └── default.conf                # 反向代理网关配置 (50M上传限制, 120s识图超时)
 ├── backend/
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   ├── main.py                     # FastAPI 启动入口与静态文件托管
+│   ├── requirements.txt            # Python 核心依赖清单
+│   ├── main.py                     # FastAPI 启动入口、静态页面托管与API挂载
 │   ├── config.py                   # 全局配置管理
-│   ├── database.py                 # PostgreSQL 数据库引擎
+│   ├── database.py                 # PostgreSQL / SQLite 数据库引擎
 │   ├── models.py                   # 肿瘤全周期数据模型 (SQLAlchemy)
 │   ├── schemas.py                  # Pydantic 校验与契约
 │   ├── auth.py                     # 密码哈希与 JWT 鉴权
 │   ├── services/
 │   │   ├── ai_extractor.py         # 多模态大模型智能识别 (化验/影像/病理/出院小结)
 │   │   └── report_generator.py     # 肿瘤门诊 MDT 就诊病历生成器
-│   └── routers/
-│       ├── auth_router.py          # 注册、登录、档案设置
-│       ├── oncology_router.py      # 手术、放疗、系统治疗、全景时间轴
-│       ├── lab_router.py           # 化验单与检验指标管理
-│       ├── imaging_router.py       # 影像复查与 RECIST 疗效追踪
-│       ├── upload_router.py        # 文件上传与 AI 触发提取
-│       ├── chart_router.py         # ECharts 时序数据集接口
-│       └── share_router.py         # 门诊报告只读分享与校验
+│   └── routers/                    # 认证、肿瘤治疗、化验单、影像、图表、分享等路由
 └── frontend/                       # 现代化响应式 Web 前端 (PC/手机端自适应)
     ├── index.html                  # 主控制台 (时间轴、AI识别、治疗登记、图表)
     ├── share.html                  # 医生/专家专属只读就诊汇报单 (免登录外链)
@@ -75,50 +68,44 @@ MedTrack/
 
 ---
 
-## 三、 快速部署教程 (Docker Compose)
+## 三、 免本地构建：通过 Docker 镜像一键部署
 
-### 1. 配置环境变量
-在项目根目录下复制一份 `.env` 文件：
+本项目已配置 **GitHub Actions CI/CD**，代码推送到 GitHub 时，云端会自动构建并发布多架构镜像（支持 x86_64 与 ARM64 如树莓派/NAS）：
+*   **GitHub 原生镜像源**：`ghcr.io/befantasy/medtrack:latest`
+*   **访问端口**：默认配置为 **`6688`**（避开 Chrome/Edge/Firefox 强制拦截的 6666 端口与 Linux 666 特权端口）。
+
+### 1. 准备配置文件
+在您的服务器或本地任意目录创建文件夹，准备 `docker-compose.yml` 和 `.env`：
+
 ```bash
+# 复制环境变量配置
 cp .env.example .env
 ```
-根据需要修改 `.env` 中的大模型 API 密钥：
+根据需要编辑 `.env`：
 ```ini
-AI_API_KEY=你的多模态大模型API密钥
+# 服务访问端口 (默认 6688)
+PORT=6688
+
+# 多模态大模型配置 (可选)
+AI_API_KEY=你的大模型API密钥
 AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
 AI_MODEL=gemini-2.0-flash
 ```
-*(注：如果暂时未填写 API Key，系统内置了高质量医学级模拟数据引擎，完全可以正常演示全部上传、提取、入库和图表逻辑)*
 
-### 2. 启动容器集群
+### 2. 一键启动
+无需下载完整源码，直接执行：
 ```bash
-docker-compose up -d --build
+docker compose up -d
 ```
-启动后容器包含：
-*   `med_nginx`：反向代理网关（监听宿主机 `8080` 端口）
-*   `med_backend`：FastAPI 业务与 AI 引擎
-*   `med_postgres`：PostgreSQL 15 数据库
+启动完成后：
+*   打开浏览器直接访问：`http://服务器IP:6688` 或 `http://localhost:6688`
+*   Swagger 接口文档：`http://服务器IP:6688/api/docs`
 
 ---
 
-## 四、 与 `cloudflared` 容器无缝打通
+## 四、 本地二次开发或源码构建 (可选)
 
-由于您的 `cloudflared` 是以容器方式运行的，我们已在 `docker-compose.yml` 中建立了名为 `med-net` 的 Docker 网络。
-
-### 步骤 1：将您的 `cloudflared` 容器连接到该网络
-执行以下命令（将 `<你的cloudflared容器名称>` 替换为您实际的容器名）：
+若您克隆了源码并在本地修改，可使用本地构建模式运行：
 ```bash
-docker network connect med-net <你的cloudflared容器名称>
+docker compose up -d --build
 ```
-
-### 步骤 2：在 Cloudflare 控制台配置隧道转发
-登录 [Cloudflare Zero Trust 控制台](https://one.dash.cloudflare.com/) ➔ 进入 **Networks** ➔ **Tunnels** ➔ 点击您的隧道：
-1. 添加一条 **Public Hostname**：
-   * **Subdomain**：例如 `med` 或 `health`
-   * **Domain**：选择您的主域名（如 `yourdomain.com`）
-2. 在 **Service** 部分配置：
-   * **Type**：`HTTP`
-   * **URL**：`med_nginx:80`
-3. 保存即可。
-
-现在，您和所有用户即可通过公网安全域名（如 `https://med.yourdomain.com`）直接访问系统，在微信中点击分享链接也能秒开！

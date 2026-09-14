@@ -55,3 +55,14 @@ def health_check():
         "service": settings.PROJECT_NAME,
         "database": settings.DATABASE_URL.split("://")[0]
     }
+
+# 挂载前端静态页面与资源 (一体化单镜像，无需独立 Nginx)
+frontend_candidates = [
+    os.path.join(os.path.dirname(__file__), "frontend"),
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend"),
+    "/app/frontend",
+]
+frontend_dir = next((p for p in frontend_candidates if os.path.isdir(p)), None)
+if frontend_dir:
+    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
+
