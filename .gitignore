@@ -15,6 +15,8 @@ venv/
 # 上传文件与测试图片
 backend/uploads/*
 !backend/uploads/.gitkeep
+uploads/
+postgres_data/
 
 # 数据库文件
 *.db
