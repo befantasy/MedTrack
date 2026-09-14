@@ -35,7 +35,7 @@
 ## 二、 目录结构
 
 ```
-MedFind/
+MedTrack/
 ├── docker-compose.yml              # 统一容器编排 (Nginx + Backend + Postgres)
 ├── .env.example                    # 环境变量模版 (API Key, DB配置, JWT密钥)
 ├── README.md                       # 部署与使用完整文档
