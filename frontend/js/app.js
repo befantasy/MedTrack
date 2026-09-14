@@ -362,13 +362,45 @@ async function confirmSaveParsedDoc() {
 
   try {
     if (docType === 'lab') {
+      const reportDate = data.report_date || new Date().toISOString().slice(0, 10);
+      const items = (data.items || []).map(it => {
+        let val = it.value;
+        if (typeof val === 'string') {
+          const parsed = parseFloat(val.replace(/[^\d.]/g, ''));
+          val = isNaN(parsed) ? null : parsed;
+        }
+        let refMin = it.ref_min;
+        if (typeof refMin === 'string') {
+          const parsed = parseFloat(refMin.replace(/[^\d.]/g, ''));
+          refMin = isNaN(parsed) ? null : parsed;
+        }
+        let refMax = it.ref_max;
+        if (typeof refMax === 'string') {
+          const parsed = parseFloat(refMax.replace(/[^\d.]/g, ''));
+          refMax = isNaN(parsed) ? null : parsed;
+        }
+        return {
+          item_name: it.item_name || it.name || '未知指标',
+          item_code: (it.item_code || it.code || 'OTHER').toUpperCase().trim(),
+          category: it.category || 'other',
+          value: typeof val === 'number' && !isNaN(val) ? val : null,
+          value_text: it.value_text || (it.value !== null && it.value !== undefined ? String(it.value) : ''),
+          unit: it.unit || '',
+          ref_min: typeof refMin === 'number' && !isNaN(refMin) ? refMin : null,
+          ref_max: typeof refMax === 'number' && !isNaN(refMax) ? refMax : null,
+          ref_range: it.ref_range || '',
+          status: it.status || 'NORMAL',
+          test_date: it.test_date || reportDate
+        };
+      });
+
       await API.createLabReport({
         report_type: data.report_type || '化验单',
-        report_date: data.report_date || new Date().toISOString().slice(0, 10),
+        report_date: reportDate,
         hospital: data.hospital || '',
-        raw_file_url: lastParsedDoc.raw_file_url,
+        raw_file_url: lastParsedDoc.raw_file_url || '',
         ai_summary: data.ai_summary || '',
-        items: data.items || []
+        items: items
       });
     } else if (docType === 'imaging') {
       await API.createImagingReport({

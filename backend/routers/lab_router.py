@@ -28,31 +28,32 @@ def create_lab_report(
     """手动或通过 AI 解析确认后新建化验单及检验明细项"""
     report = models.LabReport(
         user_id=current_user.id,
-        report_type=report_in.report_type,
+        report_type=report_in.report_type or "检验化验单",
         report_date=report_in.report_date,
-        hospital=report_in.hospital,
-        raw_file_url=report_in.raw_file_url,
-        ai_summary=report_in.ai_summary
+        hospital=report_in.hospital or "",
+        raw_file_url=report_in.raw_file_url or "",
+        ai_summary=report_in.ai_summary or ""
     )
     db.add(report)
     db.commit()
     db.refresh(report)
 
     for it in report_in.items:
+        code = (it.item_code or "OTHER").upper().strip()
         db_item = models.LabItem(
             report_id=report.id,
             user_id=current_user.id,
-            item_name=it.item_name,
-            item_code=it.item_code.upper().strip(),
-            category=it.category,
+            item_name=it.item_name or code,
+            item_code=code,
+            category=it.category or "other",
             value=it.value,
             value_text=it.value_text or (str(it.value) if it.value is not None else ""),
-            unit=it.unit,
+            unit=it.unit or "",
             ref_min=it.ref_min,
             ref_max=it.ref_max,
-            ref_range=it.ref_range,
+            ref_range=it.ref_range or "",
             status=it.status or "NORMAL",
-            test_date=report.report_date
+            test_date=it.test_date or report.report_date
         )
         db.add(db_item)
 

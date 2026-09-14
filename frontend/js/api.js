@@ -62,7 +62,16 @@ const API = {
       }
 
       if (!response.ok) {
-        throw new Error(data.detail || data.message || `请求失败 (${response.status})`);
+        let msg = data.detail || data.message || `请求失败 (${response.status})`;
+        if (Array.isArray(msg)) {
+          msg = msg.map(item => {
+            const field = item.loc ? item.loc[item.loc.length - 1] : '';
+            return `${field ? field + ': ' : ''}${item.msg}`;
+          }).join('; ');
+        } else if (typeof msg === 'object') {
+          msg = JSON.stringify(msg);
+        }
+        throw new Error(msg);
       }
       return data;
     } catch (err) {

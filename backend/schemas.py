@@ -1,5 +1,6 @@
+import re
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from datetime import datetime
 
 # ==================== 用户与认证 ====================
@@ -195,8 +196,8 @@ class SystemicTherapyOut(SystemicTherapyBase):
 
 # ==================== 化验单明细与总单 ====================
 class LabItemBase(BaseModel):
-    item_name: str
-    item_code: str
+    item_name: str = "未知指标"
+    item_code: str = "OTHER"
     category: Optional[str] = "other"
     value: Optional[float] = None
     value_text: Optional[str] = ""
@@ -205,7 +206,25 @@ class LabItemBase(BaseModel):
     ref_max: Optional[float] = None
     ref_range: Optional[str] = ""
     status: Optional[str] = "NORMAL"
-    test_date: str
+    test_date: Optional[str] = ""
+
+    @field_validator("value", "ref_min", "ref_max", mode="before")
+    @classmethod
+    def parse_float_safe(cls, v):
+        if v is None or v == "" or v == "-":
+            return None
+        if isinstance(v, (int, float)):
+            return float(v)
+        if isinstance(v, str):
+            v_clean = v.strip()
+            if not v_clean or v_clean == "-":
+                return None
+            try:
+                cleaned = re.sub(r"[^\d.]", "", v_clean)
+                return float(cleaned) if cleaned else None
+            except Exception:
+                return None
+        return None
 
 class LabItemCreate(LabItemBase):
     pass
