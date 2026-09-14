@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     dropzone.addEventListener('drop', (e) => {
       const dt = e.dataTransfer;
       if (dt && dt.files && dt.files.length > 0) {
-        onFileSelected(dt.files[0]);
+        onFileSelected(dt.files);
       }
     });
   }
@@ -270,6 +270,8 @@ async function onFileSelected(event) {
     files = Array.from(event);
   } else if (event instanceof File) {
     files = [event];
+  } else if (Array.isArray(event)) {
+    files = event;
   }
   if (files.length === 0) return;
 
@@ -281,22 +283,39 @@ async function onFileSelected(event) {
   previewBox.style.display = 'none';
 
   parsedDocsQueue = [];
+  let completed = 0;
 
-  for (let i = 0; i < files.length; i++) {
+  const updateStatus = () => {
     statusBox.innerHTML = `
       <div style="display:flex; align-items:center; justify-content:center; gap:10px; color:#0284c7; padding:12px;">
         <div style="width:20px; height:20px; border:3px solid #e0f2fe; border-top-color:#0284c7; border-radius:50%; animation:spin 1s linear infinite;"></div>
-        <span>正在解析第 ${i + 1} / ${files.length} 张单据...</span>
+        <span>正在并发极速解析... 已完成 ${completed} / ${files.length} 张单据</span>
       </div>
       <style>@keyframes spin { 0% { transform:rotate(0deg); } 100% { transform:rotate(360deg); } }</style>
     `;
+  };
+
+  updateStatus();
+
+  // Use Promise.all for concurrent uploading
+  const promises = files.map(async (f, idx) => {
     try {
-      const res = await API.uploadAndParseDoc(files[i], docType);
-      parsedDocsQueue.push(res);
+      const res = await API.uploadAndParseDoc(f, docType);
+      // We push an object with idx to sort them later so they match upload order
+      parsedDocsQueue.push({ idx, res });
     } catch (err) {
-      alert(`第 ${i + 1} 张解析失败: ${err.message}`);
+      alert(`第 ${idx + 1} 张 (${f.name}) 解析失败: ${err.message}`);
+    } finally {
+      completed++;
+      updateStatus();
     }
-  }
+  });
+
+  await Promise.all(promises);
+
+  // Restore order and unwrap
+  parsedDocsQueue.sort((a, b) => a.idx - b.idx);
+  parsedDocsQueue = parsedDocsQueue.map(item => item.res);
 
   statusBox.style.display = 'none';
   if (parsedDocsQueue.length > 0) {
