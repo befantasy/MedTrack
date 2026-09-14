@@ -13,16 +13,23 @@ window.showToast = function(message, type = null) {
     }
   }
   let toastContainer = document.getElementById('toast-container');
+  const isMobile = window.innerWidth <= 768;
+  const topPos = isMobile ? '115px' : '80px';
+
   if (!toastContainer) {
     toastContainer = document.createElement('div');
     toastContainer.id = 'toast-container';
-    toastContainer.style.cssText = 'position:fixed; top:30px; left:50%; transform:translateX(-50%); z-index:99999; display:flex; flex-direction:column; gap:10px; pointer-events:none;';
+    toastContainer.className = 'toast-container';
+    toastContainer.style.cssText = `position:fixed; top:${topPos}; left:50%; transform:translateX(-50%); z-index:100000; display:flex; flex-direction:column; gap:10px; pointer-events:none; max-width:90vw;`;
     document.body.appendChild(toastContainer);
+  } else {
+    toastContainer.style.top = topPos;
   }
+  
   const toast = document.createElement('div');
   const bg = type === 'success' ? '#10b981' : (type === 'error' ? '#ef4444' : '#3b82f6');
   const icon = type === 'success' ? '✅' : (type === 'error' ? '❌' : 'ℹ️');
-  toast.style.cssText = `background:${bg}; color:white; padding:12px 24px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); display:flex; align-items:center; gap:8px; font-weight:500; font-size:0.95rem; opacity:0; transform:translateY(-20px); transition:all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55); pointer-events:auto; max-width: 90vw; word-break: break-word;`;
+  toast.style.cssText = `background:${bg}; color:white; padding:12px 24px; border-radius:10px; box-shadow:0 10px 25px -5px rgba(0,0,0,0.25), 0 8px 10px -6px rgba(0,0,0,0.15); display:flex; align-items:center; gap:10px; font-weight:500; font-size:0.95rem; opacity:0; transform:translateY(-15px); transition:all 0.3s cubic-bezier(0.16, 1, 0.3, 1); pointer-events:auto; max-width: 90vw; word-break: break-word; backdrop-filter:blur(4px);`;
   
   // 简易处理换行符
   const formattedMessage = message.replace(/\n/g, '<br>');
@@ -36,7 +43,7 @@ window.showToast = function(message, type = null) {
   
   setTimeout(() => {
     toast.style.opacity = '0';
-    toast.style.transform = 'translateY(-20px)';
+    toast.style.transform = 'translateY(-15px)';
     setTimeout(() => toast.remove(), 300);
   }, type === 'error' ? 5000 : 3000);
 };
