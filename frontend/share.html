@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>患者病程与就诊汇报单 | 医生/专家查阅专区</title>
-  <link rel="stylesheet" href="css/style.css?v=1.7">
+  <link rel="stylesheet" href="css/style.css?v=1.8">
   <style>
     body { background-color: #f1f5f9; }
     .share-container { max-width: 960px; margin: 24px auto; padding: 0 16px; }
@@ -52,8 +52,29 @@
     </div>
   </div>
 
-  <script src="js/api.js?v=1.7"></script>
+  <script src="js/api.js?v=1.8"></script>
   <script>
+    function calculateAge(birthDateStr) {
+      if (!birthDateStr) return '';
+      const parts = String(birthDateStr).trim().split('-');
+      if (parts.length < 1 || !parts[0]) return '';
+      const birthYear = parseInt(parts[0], 10);
+      if (isNaN(birthYear) || birthYear < 1900 || birthYear > 2100) return '';
+      const birthMonth = parts.length >= 2 ? parseInt(parts[1], 10) : 1;
+      const birthDay = parts.length >= 3 ? parseInt(parts[2], 10) : 1;
+
+      const today = new Date();
+      const currentYear = today.getFullYear();
+      const currentMonth = today.getMonth() + 1;
+      const currentDay = today.getDate();
+
+      let age = currentYear - birthYear;
+      if (currentMonth < birthMonth || (currentMonth === birthMonth && currentDay < birthDay)) {
+        age--;
+      }
+      return age >= 0 ? `${age}岁` : '';
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
 
@@ -126,7 +147,11 @@
         <div class="doc-header">
           <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap;">
             <div>
-              <h1 style="font-size:1.45rem; font-weight:800; color:#0f172a;">${escapeHtml(p.name)} - 肿瘤病程就诊汇报单</h1>
+              <h1 style="font-size:1.45rem; font-weight:800; color:#0f172a; display:flex; align-items:center; flex-wrap:wrap; gap:8px;">
+                <span>${escapeHtml(p.name)}</span>
+                ${(p.gender || p.birth_date) ? `<span class="badge" style="background:#e0f2fe; color:#0369a1; font-size:0.85rem; padding:3px 10px; font-weight:600;">👤 ${[p.gender, calculateAge(p.birth_date)].filter(Boolean).join(' · ')}</span>` : ''}
+                <span style="font-size:1rem; font-weight:normal; color:#64748b;">- 肿瘤病程就诊汇报单</span>
+              </h1>
               <div style="font-size:0.85rem; color:#64748b; margin-top:4px;">
                 报告生成时间: ${rep.generated_at} | 链接有效至: ${expireTime || '近期'}
               </div>
@@ -139,6 +164,7 @@
 
           <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:14px; margin-top:16px;">
             <div style="display:flex; flex-wrap:wrap; gap:16px; font-size:0.92rem; color:#334155;">
+              ${(p.gender || p.birth_date) ? `<span><strong>基本情况:</strong> ${[p.gender, calculateAge(p.birth_date)].filter(Boolean).join(' · ')}${p.birth_date ? ` (${p.birth_date})` : ''}</span>` : ''}
               <span><strong>初诊分期:</strong> ${escapeHtml(p.initial_staging || '未详')}</span>
               <span><strong>当前治疗阶段:</strong> <span class="badge badge-green">${escapeHtml(p.current_staging || '维持/随访')}</span></span>
               <span><strong>ECOG体力评分:</strong> ${escapeHtml(p.ecog_score)}分</span>

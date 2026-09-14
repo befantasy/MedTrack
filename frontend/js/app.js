@@ -123,10 +123,50 @@ async function handleRegister() {
   }
 }
 
+// ==================== 年龄与工具辅助函数 ====================
+function calculateAge(birthDateStr) {
+  if (!birthDateStr) return '';
+  const parts = String(birthDateStr).trim().split('-');
+  if (parts.length < 1 || !parts[0]) return '';
+  const birthYear = parseInt(parts[0], 10);
+  if (isNaN(birthYear) || birthYear < 1900 || birthYear > 2100) return '';
+  const birthMonth = parts.length >= 2 ? parseInt(parts[1], 10) : 1;
+  const birthDay = parts.length >= 3 ? parseInt(parts[2], 10) : 1;
+
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth() + 1;
+  const currentDay = today.getDate();
+
+  let age = currentYear - birthYear;
+  if (currentMonth < birthMonth || (currentMonth === birthMonth && currentDay < birthDay)) {
+    age--;
+  }
+  return age >= 0 ? `${age}岁` : '';
+}
+
+if (typeof escapeHtml !== 'function') {
+  window.escapeHtml = function(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  };
+}
+
 // ==================== 顶部档案面板渲染 ====================
 function renderProfileHeader() {
   const box = document.getElementById('profile-summary-bar');
   if (!box) return;
+
+  const age = calculateAge(currentProfile.birth_date);
+  const gender = (currentProfile.gender || '').trim();
+  let genderAgeParts = [];
+  if (gender) genderAgeParts.push(gender);
+  if (age) genderAgeParts.push(age);
+  const genderAgeText = genderAgeParts.join(' · ');
 
   let markers = {};
   try {
@@ -144,17 +184,19 @@ function renderProfileHeader() {
   box.innerHTML = `
     <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
       <div>
-        <h2 style="font-size:1.25rem; font-weight:700; color:#0f172a; display:flex; align-items:center; gap:8px;">
-          <span>${currentProfile.patient_name || '未命名患者'}</span>
-          <span class="badge badge-purple">${currentProfile.primary_site || '原发部位未注'}</span>
-          <span class="badge badge-blue">${currentProfile.pathology_type || '病理未录'}</span>
-          <span class="badge badge-green">${currentProfile.current_staging || '维持治疗/随访'}</span>
+        <h2 style="font-size:1.25rem; font-weight:700; color:#0f172a; display:flex; align-items:center; flex-wrap:wrap; gap:8px;">
+          <span>${escapeHtml(currentProfile.patient_name || '未命名患者')}</span>
+          ${genderAgeText ? `<span class="badge" style="background:#e0f2fe; color:#0369a1; font-size:0.85rem; padding:3px 10px; font-weight:600;">👤 ${escapeHtml(genderAgeText)}</span>` : ''}
+          <span class="badge badge-purple">${escapeHtml(currentProfile.primary_site || '原发部位未注')}</span>
+          <span class="badge badge-blue">${escapeHtml(currentProfile.pathology_type || '病理未录')}</span>
+          <span class="badge badge-green">${escapeHtml(currentProfile.current_staging || '维持治疗/随访')}</span>
         </h2>
         <div style="font-size:0.88rem; color:#475569; margin-top:6px; display:flex; flex-wrap:wrap; gap:16px;">
-          <span>初诊分期: <strong>${currentProfile.initial_staging || '未详'}</strong></span>
-          <span>确诊时间: <strong>${currentProfile.initial_diagnosis_date || '未详'}</strong></span>
-          <span>分子突变/靶点: <strong style="color:#0284c7;">${markerList}</strong></span>
-          <span>合并慢病: <strong style="color:#d97706;">${comorbText}</strong></span>
+          ${currentProfile.birth_date ? `<span>出生年月: <strong>${escapeHtml(currentProfile.birth_date)}</strong></span>` : ''}
+          <span>初诊分期: <strong>${escapeHtml(currentProfile.initial_staging || '未详')}</strong></span>
+          <span>确诊时间: <strong>${escapeHtml(currentProfile.initial_diagnosis_date || '未详')}</strong></span>
+          <span>分子突变/靶点: <strong style="color:#0284c7;">${escapeHtml(markerList)}</strong></span>
+          <span>合并慢病: <strong style="color:#d97706;">${escapeHtml(comorbText)}</strong></span>
         </div>
       </div>
       <div>
@@ -539,6 +581,7 @@ function renderConsultationReport(rep, container) {
           <span style="font-size:0.85rem; color:#64748b;">报告生成时间: ${rep.generated_at}</span>
         </div>
         <div style="font-size:0.92rem; color:#334155; margin-top:8px; display:flex; flex-wrap:wrap; gap:16px;">
+          ${(p.gender || p.birth_date) ? `<span><strong>基本信息:</strong> ${[p.gender, calculateAge(p.birth_date)].filter(Boolean).join(' · ')}${p.birth_date ? ` (${p.birth_date})` : ''}</span>` : ''}
           <span><strong>原发诊断:</strong> ${escapeHtml(p.primary_site)} ${escapeHtml(p.pathology_type)}</span>
           <span><strong>初诊分期:</strong> ${escapeHtml(p.initial_staging || '未详')}</span>
           <span><strong>当前阶段:</strong> ${escapeHtml(p.current_staging || '维持/随访')}</span>
@@ -767,6 +810,10 @@ function openProfileModal() {
   m.style.display = 'flex';
 
   document.getElementById('prof-name').value = currentProfile.patient_name || '';
+  const genderEl = document.getElementById('prof-gender');
+  if (genderEl) genderEl.value = currentProfile.gender || '';
+  const birthEl = document.getElementById('prof-birth-date');
+  if (birthEl) birthEl.value = currentProfile.birth_date || '';
 
   // 1. 原发部位 (过滤历史默认占位符 '未录入')
   let site = (currentProfile.primary_site || '').trim();
@@ -916,6 +963,8 @@ async function saveProfile() {
 
   const updated = {
     patient_name: document.getElementById('prof-name').value.trim(),
+    gender: document.getElementById('prof-gender') ? document.getElementById('prof-gender').value.trim() : '',
+    birth_date: document.getElementById('prof-birth-date') ? document.getElementById('prof-birth-date').value.trim() : '',
     primary_site: primarySite,
     pathology_type: pathologyType,
     initial_diagnosis_date: document.getElementById('prof-date').value.trim(),
@@ -1302,6 +1351,7 @@ const AdminModule = {
           </h4>
           <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:10px; font-size:0.88rem; color:#475569;">
             <div>患者姓名: <strong>${escapeHtml(p.patient_name || '未填')}</strong></div>
+            <div>性别/年龄: <strong>${[p.gender, calculateAge(p.birth_date)].filter(Boolean).join(' · ') || '未填'}</strong></div>
             <div>初诊分期: <strong>${escapeHtml(p.initial_staging || '未详')}</strong></div>
             <div>当前分期: <strong>${escapeHtml(p.current_staging || '未详')}</strong></div>
             <div>确诊日期: <strong>${escapeHtml(p.initial_diagnosis_date || '未详')}</strong></div>
