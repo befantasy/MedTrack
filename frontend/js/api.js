@@ -1,5 +1,5 @@
 /**
- * MedTrack-Onco API 客户端交互封装
+ * MedTrack API 客户端交互封装
  */
 
 const API_BASE = '/api';

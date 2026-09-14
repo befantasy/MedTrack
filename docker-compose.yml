@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # 1. MedTrack-Onco 肿瘤全生命周期与慢病智能管理平台 (一体化容器: 前端Web + 后端API + AI智能解析)
+  # 1. MedTrack 肿瘤全生命周期与慢病智能管理平台 (一体化容器: 前端Web + 后端API + AI智能解析)
   medtrack:
     image: ghcr.io/befantasy/medtrack:latest
     build:

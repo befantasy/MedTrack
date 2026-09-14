@@ -2,7 +2,7 @@ import os
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "MedTrack-Onco 肿瘤与慢病智能管理平台"
+    PROJECT_NAME: str = "MedTrack 肿瘤与慢病智能管理平台"
     API_V1_STR: str = "/api"
     
     # 数据库配置: 优先使用环境变量中的 PostgreSQL，未配置时回退到本地 SQLite 便于开发与测试

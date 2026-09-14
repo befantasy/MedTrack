@@ -1,5 +1,5 @@
 /**
- * MedTrack-Onco 肿瘤全病程全景时间轴渲染引擎
+ * MedTrack 肿瘤全病程全景时间轴渲染引擎
  */
 
 const TimelineModule = {

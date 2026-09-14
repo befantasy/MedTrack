@@ -1,5 +1,5 @@
 /**
- * MedTrack-Onco 核心应用交互逻辑
+ * MedTrack 核心应用交互逻辑
  */
 
 let currentProfile = {};

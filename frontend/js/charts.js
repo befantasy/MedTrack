@@ -1,5 +1,5 @@
 /**
- * MedTrack-Onco ECharts 肿瘤标志物与慢病指标趋势看板
+ * MedTrack ECharts 肿瘤标志物与慢病指标趋势看板
  */
 
 const ChartsModule = {
