@@ -121,6 +121,28 @@ def create_pathology(data_in: schemas.PathologyReportCreate, current_user: model
     db.refresh(item)
     return item
 
+@router.put("/pathologies/{id}", response_model=schemas.PathologyReportOut)
+def update_pathology(
+    id: int, 
+    data_in: schemas.PathologyReportUpdate, 
+    current_user: models.User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    item = db.query(models.PathologyReport).filter(
+        models.PathologyReport.id == id, 
+        models.PathologyReport.user_id == current_user.id
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    
+    update_data = data_in.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(item, key, value)
+        
+    db.commit()
+    db.refresh(item)
+    return item
+
 @router.delete("/pathologies/{id}")
 def delete_pathology(id: int, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     item = db.query(models.PathologyReport).filter(models.PathologyReport.id == id, models.PathologyReport.user_id == current_user.id).first()

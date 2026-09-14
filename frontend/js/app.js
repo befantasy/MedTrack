@@ -259,257 +259,230 @@ async function switchTab(tabId) {
 }
 
 // ==================== AI 单据识别与自动提取 ====================
-let lastParsedDoc = null;
+let parsedDocsQueue = [];
 
 async function onFileSelected(event) {
-  let file = null;
+  let files = [];
   if (event && event.target && event.target.files) {
-    file = event.target.files[0];
-    event.target.value = ''; // 允许重复上传相同文件名触发 change 事件
+    files = Array.from(event.target.files);
+    event.target.value = ''; 
+  } else if (event instanceof FileList) {
+    files = Array.from(event);
   } else if (event instanceof File) {
-    file = event;
+    files = [event];
   }
-  if (!file) return;
+  if (files.length === 0) return;
 
   const docType = document.getElementById('upload-doc-type').value;
   const statusBox = document.getElementById('upload-status');
   const previewBox = document.getElementById('upload-preview');
 
   statusBox.style.display = 'block';
-  statusBox.innerHTML = `
-    <div style="display:flex; align-items:center; justify-content:center; gap:10px; color:#0284c7; padding:12px;">
-      <div style="width:20px; height:20px; border:3px solid #e0f2fe; border-top-color:#0284c7; border-radius:50%; animation:spin 1s linear infinite;"></div>
-      <span>多模态视觉 AI 正在精准解析单据（指标、参考范围、异常状态提取中...）</span>
-    </div>
-    <style>@keyframes spin { 0% { transform:rotate(0deg); } 100% { transform:rotate(360deg); } }</style>
-  `;
   previewBox.style.display = 'none';
 
-  try {
-    const res = await API.uploadAndParseDoc(file, docType);
-    lastParsedDoc = res;
-    statusBox.style.display = 'none';
-    renderParsedPreview(res);
-  } catch (err) {
-    statusBox.innerHTML = `<div style="color:#ef4444; padding:10px;">❌ 解析失败: ${err.message}</div>`;
+  parsedDocsQueue = [];
+
+  for (let i = 0; i < files.length; i++) {
+    statusBox.innerHTML = `
+      <div style="display:flex; align-items:center; justify-content:center; gap:10px; color:#0284c7; padding:12px;">
+        <div style="width:20px; height:20px; border:3px solid #e0f2fe; border-top-color:#0284c7; border-radius:50%; animation:spin 1s linear infinite;"></div>
+        <span>正在解析第 ${i + 1} / ${files.length} 张单据...</span>
+      </div>
+      <style>@keyframes spin { 0% { transform:rotate(0deg); } 100% { transform:rotate(360deg); } }</style>
+    `;
+    try {
+      const res = await API.uploadAndParseDoc(files[i], docType);
+      parsedDocsQueue.push(res);
+    } catch (err) {
+      alert(`第 ${i + 1} 张解析失败: ${err.message}`);
+    }
+  }
+
+  statusBox.style.display = 'none';
+  if (parsedDocsQueue.length > 0) {
+    renderParsedPreviewQueue();
   }
 }
 
-function renderParsedPreview(res) {
+function renderParsedPreviewQueue() {
   const box = document.getElementById('upload-preview');
   box.style.display = 'block';
 
-  const docType = res.doc_type;
-  const data = res.parsed_data || {};
-
-  let bannerHtml = '';
-  if (data._is_mock) {
-    bannerHtml = `
-      <div style="background:#fffbeb; border:1px solid #fde68a; border-left:4px solid #f59e0b; padding:12px 16px; border-radius:8px; margin-bottom:14px; color:#92400e;">
-        <div style="font-weight:700; font-size:0.95rem; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
-          <span>⚠️ 当前处于演示模式 (系统预置示例数据)</span>
-        </div>
-        <div style="font-size:0.86rem; line-height:1.5;">
-          ${data._error ? `<div style="color:#b91c1c; font-weight:600; margin-bottom:4px;">❌ 接口异常: ${escapeHtml(data._error)}</div>` : ''}
-          系统未检测到有效的大模型 API 密钥（<code>AI_API_KEY</code>），当前为您展示的是系统内置的标准样例模板（无论上传何种单据均呈现此模板，并非被系统缓存）。<br>
-          <strong>如需开启真实拍照识图：</strong> 请管理员登录后在 <strong>【🛡️ 系统管理】</strong> 直接填入 API Key（即时生效），或在 VPS 的 <code>.env</code> 中配置 <code>AI_API_KEY</code>。
-        </div>
-      </div>
-    `;
-  } else {
-    bannerHtml = `
-      <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-left:4px solid #22c55e; padding:10px 14px; border-radius:8px; margin-bottom:14px; color:#166534; font-size:0.86rem; display:flex; justify-content:space-between; align-items:center;">
-        <span>✨ <strong>多模态 AI 智能提取成功：</strong> 单据已由 <code>${escapeHtml(data._model_used || '视觉大模型')}</code> 深度解析</span>
-      </div>
-    `;
-  }
-
-  let contentHtml = '';
-
-  if (docType === 'lab') {
-    const items = data.items || [];
-    let rows = items.map(it => {
-      let statusBadge = `<span class="badge badge-green">正常</span>`;
-      if (it.status === 'HIGH') statusBadge = `<span class="badge badge-red">偏高 ↑</span>`;
-      if (it.status === 'LOW') statusBadge = `<span class="badge badge-orange">偏低 ↓</span>`;
-      return `
-        <tr>
-          <td><strong>${escapeHtml(it.item_name)}</strong></td>
-          <td><code>${escapeHtml(it.item_code)}</code></td>
-          <td><strong>${it.value !== null ? it.value : it.value_text}</strong></td>
-          <td>${escapeHtml(it.unit)}</td>
-          <td>${escapeHtml(it.ref_range)}</td>
-          <td>${statusBadge}</td>
-        </tr>
-      `;
-    }).join('');
-
-    contentHtml = `
-      <div style="margin-bottom:12px; font-size:0.92rem;">
-        <span>化验单类型: <strong>${escapeHtml(data.report_type)}</strong></span> | 
-        <span>采样日期: <strong>${escapeHtml(data.report_date)}</strong></span> | 
-        <span>医院: <strong>${escapeHtml(data.hospital || '未注')}</strong></span>
-      </div>
-      <div style="background:#eff6ff; padding:10px; border-radius:8px; margin-bottom:12px; font-size:0.88rem; color:#1e40af;">
-        💡 <strong>AI 总结:</strong> ${escapeHtml(data.ai_summary || '未检测到重大异常')}
-      </div>
-      <div class="table-responsive">
-        <table class="med-table">
-          <thead>
-            <tr><th>项目名称</th><th>代码</th><th>测定值</th><th>单位</th><th>参考区间</th><th>状态</th></tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-    `;
-  } else if (docType === 'imaging') {
-    contentHtml = `
-      <div style="font-size:0.92rem; margin-bottom:10px;">
-        <span>类别: <strong>${escapeHtml(data.modality)}</strong></span> | 
-        <span>部位: <strong>${escapeHtml(data.body_part)}</strong></span> | 
-        <span>日期: <strong>${escapeHtml(data.report_date)}</strong></span> | 
-        <span>疗效: <span class="badge badge-blue">${escapeHtml(data.recist_evaluation || '未注')}</span></span>
-      </div>
-      <div style="margin-bottom:10px;">
-        <h4 style="font-size:0.9rem; color:#334155; margin-bottom:4px;">检查所见:</h4>
-        <div style="background:#f8fafc; padding:10px; border-radius:6px; font-size:0.88rem;">${escapeHtml(data.findings)}</div>
-      </div>
-      <div>
-        <h4 style="font-size:0.9rem; color:#334155; margin-bottom:4px;">诊断结论:</h4>
-        <div style="background:#f0fdf4; border:1px solid #bbf7d0; padding:10px; border-radius:6px; font-size:0.88rem; color:#166534; font-weight:600;">${escapeHtml(data.impression)}</div>
-      </div>
-    `;
-  } else if (docType === 'pathology') {
-    const genes = Object.entries(data.genetic_testing || {}).map(([k, v]) => `<li>${k}: <strong>${v}</strong></li>`).join('');
-    contentHtml = `
-      <div style="font-size:0.92rem; margin-bottom:10px;">
-        <span>标本类型: <strong>${escapeHtml(data.sample_type)}</strong></span> | 
-        <span>部位: <strong>${escapeHtml(data.sample_site)}</strong></span> | 
-        <span>分化程度: <strong>${escapeHtml(data.differentiation)}</strong></span>
-      </div>
-      <div style="background:#fdf4ff; border:1px solid #f5d0fe; padding:10px; border-radius:6px; margin-bottom:10px; color:#86198f;">
-        <strong>病理诊断:</strong> ${escapeHtml(data.histological_diagnosis)}
-      </div>
-      <div style="font-size:0.88rem;">
-        <strong>驱动基因/分子靶点:</strong>
-        <ul style="margin-left:20px; margin-top:4px;">${genes || '<li>未进行基因突变检测</li>'}</ul>
-      </div>
-    `;
-  } else {
-    contentHtml = `
-      <pre style="background:#f8fafc; padding:12px; border-radius:8px; font-size:0.85rem; overflow-x:auto;">${JSON.stringify(data, null, 2)}</pre>
-    `;
-  }
-
-  box.innerHTML = `
+  let html = `
     <div class="card" style="border:1px solid #0284c7; background:#ffffff;">
-      ${bannerHtml}
-      <div class="card-title" style="color:#0284c7;">
-        <span>📋 AI 结构化识别预览结果</span>
-        <button class="btn btn-primary" onclick="confirmSaveParsedDoc()">💾 确认无误，存入病历档案</button>
+      <div class="card-title" style="color:#0284c7; display:flex; justify-content:space-between; align-items:center;">
+        <span>📋 待入库清单 (${parsedDocsQueue.length}份单据)</span>
+        <button class="btn btn-primary" onclick="confirmSaveAllParsedDocs()">💾 一键全部存入病历档案</button>
       </div>
-      ${contentHtml}
-    </div>
+      <div style="color:#64748b; font-size:0.85rem; margin-bottom:10px;">
+        💡 提示：您可以展开下列卡片核对 AI 提取的数据，直接在表格内修改纠错后再存入。
+      </div>
+      <div style="display:flex; flex-direction:column; gap:10px;">
   `;
+
+  parsedDocsQueue.forEach((res, qIndex) => {
+    const docType = res.doc_type;
+    const data = res.parsed_data || {};
+    
+    let contentHtml = '';
+    
+    if (docType === 'lab') {
+      const items = data.items || [];
+      let rows = items.map((it, itemIdx) => {
+        return `
+          <tr>
+            <td><input class="form-control form-control-sm" id="edit-lab-${qIndex}-${itemIdx}-name" value="${escapeHtml(it.item_name || it.name || '')}"></td>
+            <td><input class="form-control form-control-sm" id="edit-lab-${qIndex}-${itemIdx}-code" value="${escapeHtml(it.item_code || it.code || '')}"></td>
+            <td><input class="form-control form-control-sm" id="edit-lab-${qIndex}-${itemIdx}-value" value="${it.value !== null && it.value !== undefined ? it.value : (it.value_text || '')}"></td>
+            <td><input class="form-control form-control-sm" id="edit-lab-${qIndex}-${itemIdx}-unit" value="${escapeHtml(it.unit || '')}"></td>
+            <td><input class="form-control form-control-sm" id="edit-lab-${qIndex}-${itemIdx}-range" value="${escapeHtml(it.ref_range || '')}"></td>
+          </tr>
+        `;
+      }).join('');
+      
+      contentHtml = `
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+          <input class="form-control form-control-sm" id="edit-lab-${qIndex}-type" value="${escapeHtml(data.report_type || '化验单')}" placeholder="类型">
+          <input type="date" class="form-control form-control-sm" id="edit-lab-${qIndex}-date" value="${escapeHtml(data.report_date || '')}">
+          <input class="form-control form-control-sm" id="edit-lab-${qIndex}-hospital" value="${escapeHtml(data.hospital || '')}" placeholder="医院">
+        </div>
+        <div class="table-responsive">
+          <table class="med-table">
+            <thead>
+              <tr><th>项目名称</th><th>代码</th><th>测定值</th><th>单位</th><th>参考区间</th></tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    } else if (docType === 'imaging') {
+      contentHtml = `
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+          <input class="form-control form-control-sm" id="edit-img-${qIndex}-modality" value="${escapeHtml(data.modality || '')}" placeholder="类别 (如 CT)">
+          <input class="form-control form-control-sm" id="edit-img-${qIndex}-part" value="${escapeHtml(data.body_part || '')}" placeholder="部位">
+          <input type="date" class="form-control form-control-sm" id="edit-img-${qIndex}-date" value="${escapeHtml(data.report_date || '')}">
+        </div>
+        <div style="margin-bottom:10px;">
+          <label class="form-label" style="font-size:0.85rem;">检查所见</label>
+          <textarea class="form-control" id="edit-img-${qIndex}-findings" rows="3">${escapeHtml(data.findings || '')}</textarea>
+        </div>
+        <div>
+          <label class="form-label" style="font-size:0.85rem;">诊断结论 (Impression)</label>
+          <textarea class="form-control" id="edit-img-${qIndex}-impression" rows="2">${escapeHtml(data.impression || '')}</textarea>
+        </div>
+      `;
+    } else if (docType === 'pathology') {
+      contentHtml = `
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+          <input class="form-control form-control-sm" id="edit-path-${qIndex}-type" value="${escapeHtml(data.sample_type || '')}" placeholder="标本类型">
+          <input type="date" class="form-control form-control-sm" id="edit-path-${qIndex}-date" value="${escapeHtml(data.report_date || '')}">
+        </div>
+        <div style="margin-bottom:10px;">
+          <label class="form-label" style="font-size:0.85rem;">病理诊断</label>
+          <textarea class="form-control" id="edit-path-${qIndex}-diag" rows="3">${escapeHtml(data.histological_diagnosis || '')}</textarea>
+        </div>
+      `;
+    } else {
+      contentHtml = `<div style="font-size:0.9rem; color:#64748b;">支持自动入库，无需编辑。</div>`;
+    }
+
+    html += `
+      <div style="border:1px solid #e2e8f0; border-radius:6px; background:#f8fafc;">
+        <div style="padding:10px 14px; font-weight:600; font-size:0.95rem; background:#f1f5f9; border-bottom:1px solid #e2e8f0;">
+          📄 单据 ${qIndex + 1}: ${docType.toUpperCase()}
+        </div>
+        <div style="padding:14px;">
+          ${contentHtml}
+        </div>
+      </div>
+    `;
+  });
+
+  html += `</div></div>`;
+  box.innerHTML = html;
 }
 
-async function confirmSaveParsedDoc() {
-  if (!lastParsedDoc) return;
-  const docType = lastParsedDoc.doc_type;
-  const data = lastParsedDoc.parsed_data;
+async function confirmSaveAllParsedDocs() {
+  if (parsedDocsQueue.length === 0) return;
+  const statusBox = document.getElementById('upload-status');
+  statusBox.style.display = 'block';
+  statusBox.innerHTML = '<div style="color:#0284c7; padding:10px; text-align:center;">正在批量保存...</div>';
+  
+  let successCount = 0;
 
-  try {
-    if (docType === 'lab') {
-      const reportDate = data.report_date || new Date().toISOString().slice(0, 10);
-      const items = (data.items || []).map(it => {
-        let val = it.value;
-        if (typeof val === 'string') {
-          const parsed = parseFloat(val.replace(/[^\d.]/g, ''));
-          val = isNaN(parsed) ? null : parsed;
-        }
-        let refMin = it.ref_min;
-        if (typeof refMin === 'string') {
-          const parsed = parseFloat(refMin.replace(/[^\d.]/g, ''));
-          refMin = isNaN(parsed) ? null : parsed;
-        }
-        let refMax = it.ref_max;
-        if (typeof refMax === 'string') {
-          const parsed = parseFloat(refMax.replace(/[^\d.]/g, ''));
-          refMax = isNaN(parsed) ? null : parsed;
-        }
-        return {
-          item_name: it.item_name || it.name || '未知指标',
-          item_code: (it.item_code || it.code || 'OTHER').toUpperCase().trim(),
-          category: it.category || 'other',
-          value: typeof val === 'number' && !isNaN(val) ? val : null,
-          value_text: it.value_text || (it.value !== null && it.value !== undefined ? String(it.value) : ''),
-          unit: it.unit || '',
-          ref_min: typeof refMin === 'number' && !isNaN(refMin) ? refMin : null,
-          ref_max: typeof refMax === 'number' && !isNaN(refMax) ? refMax : null,
-          ref_range: it.ref_range || '',
-          status: it.status || 'NORMAL',
-          test_date: it.test_date || reportDate
-        };
-      });
+  for (let qIndex = 0; qIndex < parsedDocsQueue.length; qIndex++) {
+    const res = parsedDocsQueue[qIndex];
+    const docType = res.doc_type;
+    const data = res.parsed_data || {};
+    
+    try {
+      if (docType === 'lab') {
+        const typeVal = document.getElementById(`edit-lab-${qIndex}-type`)?.value || '化验单';
+        const dateVal = document.getElementById(`edit-lab-${qIndex}-date`)?.value || new Date().toISOString().slice(0, 10);
+        const hospVal = document.getElementById(`edit-lab-${qIndex}-hospital`)?.value || '';
+        
+        const items = [];
+        (data.items || []).forEach((_, itemIdx) => {
+          const vCode = document.getElementById(`edit-lab-${qIndex}-${itemIdx}-code`)?.value || 'OTHER';
+          let vValStr = document.getElementById(`edit-lab-${qIndex}-${itemIdx}-value`)?.value || '';
+          
+          let parsedVal = parseFloat(vValStr.replace(/[^\d.-]/g, ''));
+          
+          items.push({
+            item_name: document.getElementById(`edit-lab-${qIndex}-${itemIdx}-name`)?.value || '未知',
+            item_code: vCode.toUpperCase().trim(),
+            value: isNaN(parsedVal) ? null : parsedVal,
+            value_text: vValStr,
+            unit: document.getElementById(`edit-lab-${qIndex}-${itemIdx}-unit`)?.value || '',
+            ref_range: document.getElementById(`edit-lab-${qIndex}-${itemIdx}-range`)?.value || '',
+            test_date: dateVal
+          });
+        });
 
-      await API.createLabReport({
-        report_type: data.report_type || '化验单',
-        report_date: reportDate,
-        hospital: data.hospital || '',
-        raw_file_url: lastParsedDoc.raw_file_url || '',
-        ai_summary: data.ai_summary || '',
-        items: items
-      });
-    } else if (docType === 'imaging') {
-      await API.createImagingReport({
-        modality: data.modality || 'CT',
-        body_part: data.body_part || '',
-        report_date: data.report_date || new Date().toISOString().slice(0, 10),
-        hospital: data.hospital || '',
-        target_lesions: JSON.stringify(data.target_lesions || []),
-        recist_evaluation: data.recist_evaluation || '',
-        findings: data.findings || '',
-        impression: data.impression || '',
-        raw_file_url: lastParsedDoc.raw_file_url
-      });
-    } else if (docType === 'pathology') {
-      await API.createPathology({
-        sample_type: data.sample_type || '',
-        sample_site: data.sample_site || '',
-        report_date: data.report_date || new Date().toISOString().slice(0, 10),
-        hospital: data.hospital || '',
-        histological_diagnosis: data.histological_diagnosis || '',
-        differentiation: data.differentiation || '',
-        ihc_markers: JSON.stringify(data.ihc_markers || {}),
-        genetic_testing: JSON.stringify(data.genetic_testing || {}),
-        raw_file_url: lastParsedDoc.raw_file_url
-      });
-    } else {
-      // 出院小结自动同步
-      if (data.therapy_info) {
-        await API.createTherapy({
-          treatment_line: data.therapy_info.treatment_line || '治疗',
-          therapy_type: data.therapy_info.therapy_type || '靶向/化疗',
-          regimen_name: data.therapy_info.regimen_name || '抗肿瘤方案',
-          cycle_number: data.therapy_info.cycle_number || 1,
-          start_date: data.record_date || new Date().toISOString().slice(0, 10),
-          drugs_detail: data.therapy_info.drugs_detail || '',
-          adverse_events: data.therapy_info.adverse_events || ''
+        await API.createLabReport({
+          report_type: typeVal,
+          report_date: dateVal,
+          hospital: hospVal,
+          raw_file_url: res.raw_file_url || '',
+          ai_summary: data.ai_summary || '',
+          items: items
+        });
+      } else if (docType === 'imaging') {
+        await API.createImagingReport({
+          modality: document.getElementById(`edit-img-${qIndex}-modality`)?.value || 'CT',
+          body_part: document.getElementById(`edit-img-${qIndex}-part`)?.value || '',
+          report_date: document.getElementById(`edit-img-${qIndex}-date`)?.value || new Date().toISOString().slice(0, 10),
+          findings: document.getElementById(`edit-img-${qIndex}-findings`)?.value || '',
+          impression: document.getElementById(`edit-img-${qIndex}-impression`)?.value || '',
+          raw_file_url: res.raw_file_url
+        });
+      } else if (docType === 'pathology') {
+        await API.createPathology({
+          sample_type: document.getElementById(`edit-path-${qIndex}-type`)?.value || '',
+          report_date: document.getElementById(`edit-path-${qIndex}-date`)?.value || new Date().toISOString().slice(0, 10),
+          histological_diagnosis: document.getElementById(`edit-path-${qIndex}-diag`)?.value || '',
+          raw_file_url: res.raw_file_url
         });
       }
+      successCount++;
+    } catch (err) {
+      alert(`单据 ${qIndex + 1} 保存失败: ${err.message}`);
     }
+  }
 
-    alert('🎉 成功存入您的病历档案！时间轴与图表已自动更新。');
+  statusBox.style.display = 'none';
+  if (successCount > 0) {
+    alert(`🎉 成功存入 ${successCount} 份单据档案！`);
+    parsedDocsQueue = [];
     document.getElementById('upload-preview').style.display = 'none';
+    
     if (window.ChartsModule) {
-      ChartsModule.tumorChartInstance = null;
-      ChartsModule.safetyChartInstance = null;
-      ChartsModule.chronicChartInstance = null;
-      ChartsModule.focusChartInstance = null;
+      window.ChartsModule.tumorChartInstance = null;
+      window.ChartsModule.safetyChartInstance = null;
+      window.ChartsModule.chronicChartInstance = null;
+      window.ChartsModule.focusChartInstance = null;
     }
-    await switchTab('timeline');
-  } catch (err) {
-    alert(`保存失败: ${err.message}`);
+    await loadUploadedDocs();
   }
 }
 

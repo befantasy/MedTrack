@@ -101,6 +101,36 @@ def get_lab_report(
         raise HTTPException(status_code=404, detail="化验单不存在")
     return report
 
+@router.put("/reports/{id}", response_model=schemas.LabReportOut)
+def update_lab_report(
+    id: int,
+    data_in: schemas.LabReportUpdate,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    report = db.query(models.LabReport).filter(
+        models.LabReport.id == id,
+        models.LabReport.user_id == current_user.id
+    ).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="化验单不存在")
+
+    update_data = data_in.model_dump(exclude_unset=True)
+    items_in = update_data.pop("items", None)
+
+    for key, value in update_data.items():
+        setattr(report, key, value)
+    
+    if items_in is not None:
+        db.query(models.LabItem).filter(models.LabItem.report_id == id).delete()
+        for it in items_in:
+            db_it = models.LabItem(**it, report_id=id)
+            db.add(db_it)
+
+    db.commit()
+    db.refresh(report)
+    return report
+
 @router.delete("/reports/{id}")
 def delete_lab_report(
     id: int,

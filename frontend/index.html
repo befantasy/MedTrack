@@ -91,9 +91,9 @@
 
         <div class="dropzone" id="upload-dropzone" onclick="document.getElementById('file-input').click()">
           <div class="dropzone-icon">📁</div>
-          <p style="font-weight:600; color:#0369a1; font-size:1.05rem;">点击或拖拽手机拍照单据 / PDF 文件至此</p>
-          <p style="font-size:0.85rem; color:#64748b; margin-top:6px;">支持 JPG、PNG、WEBP 及多页 PDF (最大支持 50MB)</p>
-          <input type="file" id="file-input" style="display:none;" accept="image/*,.pdf" onchange="onFileSelected(event)">
+          <p style="font-weight:600; color:#0369a1; font-size:1.05rem;">点击或拖拽单张/多张拍照单据或 PDF 文件至此</p>
+          <p style="font-size:0.85rem; color:#64748b; margin-top:6px;">支持批量上传 JPG、PNG、WEBP 及 PDF</p>
+          <input type="file" id="file-input" style="display:none;" accept="image/*,.pdf" multiple onchange="onFileSelected(event)">
         </div>
 
         <div id="upload-status" style="display:none; margin-top:16px;"></div>
@@ -787,9 +787,9 @@
   </div>
 
   <!-- 引入逻辑脚本 (加版本号防浏览器强缓存) -->
-  <script src="js/api.js?v=2.5"></script>
-  <script src="js/timeline.js?v=2.5"></script>
-  <script src="js/charts.js?v=2.5"></script>
-  <script src="js/app.js?v=2.5"></script>
+  <script src="js/api.js?v=2.6"></script>
+  <script src="js/timeline.js?v=2.6"></script>
+  <script src="js/charts.js?v=2.6"></script>
+  <script src="js/app.js?v=2.6"></script>
 </body>
 </html>

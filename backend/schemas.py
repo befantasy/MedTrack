@@ -256,6 +256,13 @@ class LabReportBase(BaseModel):
 class LabReportCreate(LabReportBase):
     items: List[LabItemCreate] = []
 
+class LabReportUpdate(BaseModel):
+    report_type: Optional[str] = None
+    report_date: Optional[str] = None
+    hospital: Optional[str] = None
+    ai_summary: Optional[str] = None
+    items: Optional[List[LabItemCreate]] = None
+
 class LabReportOut(LabReportBase):
     id: int
     user_id: int
@@ -278,6 +285,17 @@ class ImagingReportBase(BaseModel):
 class ImagingReportCreate(ImagingReportBase):
     pass
 
+class ImagingReportUpdate(BaseModel):
+    modality: Optional[str] = None
+    body_part: Optional[str] = None
+    report_date: Optional[str] = None
+    hospital: Optional[str] = None
+    target_lesions: Optional[str] = None
+    recist_evaluation: Optional[str] = None
+    findings: Optional[str] = None
+    impression: Optional[str] = None
+    raw_file_url: Optional[str] = None
+
 class ImagingReportOut(ImagingReportBase):
     id: int
     user_id: int
@@ -298,6 +316,17 @@ class PathologyReportBase(BaseModel):
 
 class PathologyReportCreate(PathologyReportBase):
     pass
+
+class PathologyReportUpdate(BaseModel):
+    sample_type: Optional[str] = None
+    sample_site: Optional[str] = None
+    report_date: Optional[str] = None
+    hospital: Optional[str] = None
+    histological_diagnosis: Optional[str] = None
+    differentiation: Optional[str] = None
+    ihc_markers: Optional[str] = None
+    genetic_testing: Optional[str] = None
+    raw_file_url: Optional[str] = None
 
 class PathologyReportOut(PathologyReportBase):
     id: int

@@ -35,6 +35,28 @@ def create_imaging_report(
     db.refresh(report)
     return report
 
+@router.put("/reports/{id}", response_model=schemas.ImagingReportOut)
+def update_imaging_report(
+    id: int,
+    data_in: schemas.ImagingReportUpdate,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    report = db.query(models.ImagingReport).filter(
+        models.ImagingReport.id == id,
+        models.ImagingReport.user_id == current_user.id
+    ).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="影像报告不存在")
+        
+    update_data = data_in.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(report, key, value)
+        
+    db.commit()
+    db.refresh(report)
+    return report
+
 @router.delete("/reports/{id}")
 def delete_imaging_report(
     id: int,

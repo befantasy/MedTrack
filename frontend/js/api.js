@@ -194,6 +194,12 @@ const API = {
       body: JSON.stringify(data)
     });
   },
+  async updatePathology(id, data) {
+    return await this.request(`/oncology/pathologies/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  },
   async deletePathology(id) {
     return await this.request(`/oncology/pathologies/${id}`, { method: 'DELETE' });
   },
@@ -221,6 +227,12 @@ const API = {
       body: JSON.stringify(data)
     });
   },
+  async updateLabReport(id, data) {
+    return await this.request(`/labs/reports/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  },
   async deleteLabReport(id) {
     return await this.request(`/labs/reports/${id}`, { method: 'DELETE' });
   },
@@ -231,6 +243,12 @@ const API = {
   async createImagingReport(data) {
     return await this.request('/imagings/reports', {
       method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+  async updateImagingReport(id, data) {
+    return await this.request(`/imagings/reports/${id}`, {
+      method: 'PUT',
       body: JSON.stringify(data)
     });
   },
