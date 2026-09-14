@@ -113,28 +113,50 @@ def update_lab_report(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    report = db.query(models.LabReport).filter(
-        models.LabReport.id == id,
-        models.LabReport.user_id == current_user.id
-    ).first()
-    if not report:
-        raise HTTPException(status_code=404, detail="化验单不存在")
+    import logging
+    try:
+        report = db.query(models.LabReport).filter(
+            models.LabReport.id == id,
+            models.LabReport.user_id == current_user.id
+        ).first()
+        if not report:
+            raise HTTPException(status_code=404, detail="化验单不存在")
 
-    update_data = data_in.model_dump(exclude_unset=True)
-    items_in = update_data.pop("items", None)
+        update_data = data_in.model_dump(exclude_unset=True)
+        items_in = update_data.pop("items", None)
 
-    for key, value in update_data.items():
-        setattr(report, key, value)
-    
-    if items_in is not None:
-        db.query(models.LabItem).filter(models.LabItem.report_id == id).delete()
-        for it in items_in:
-            db_it = models.LabItem(**it, report_id=id)
-            db.add(db_it)
+        for key, value in update_data.items():
+            setattr(report, key, value)
+        
+        if items_in is not None:
+            db.query(models.LabItem).filter(models.LabItem.report_id == id).delete()
+            for it in items_in:
+                code = normalize_lab_code(it.get("item_code", ""))
+                db_it = models.LabItem(
+                    report_id=id,
+                    user_id=current_user.id,
+                    item_name=it.get("item_name") or code or "未知指标",
+                    item_code=code or "OTHER",
+                    category=it.get("category") or "other",
+                    value=it.get("value"),
+                    value_text=it.get("value_text") or (str(it.get("value")) if it.get("value") is not None else ""),
+                    unit=it.get("unit") or "",
+                    ref_min=it.get("ref_min"),
+                    ref_max=it.get("ref_max"),
+                    ref_range=it.get("ref_range") or "",
+                    status=it.get("status") or "NORMAL",
+                    test_date=it.get("test_date") or report.report_date
+                )
+                db.add(db_it)
 
-    db.commit()
-    db.refresh(report)
-    return report
+        db.commit()
+        db.refresh(report)
+        return report
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.exception("Failed to update lab report")
+        raise HTTPException(status_code=400, detail=f"保存失败: {str(e)}")
 
 @router.delete("/reports/{id}")
 def delete_lab_report(

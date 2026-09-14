@@ -4,7 +4,14 @@
 
 
 // ==================== 全局 UI 交互组件 ====================
-window.showToast = function(message, type = 'success') {
+window.showToast = function(message, type = null) {
+  if (!type) {
+    if (/失败|错误|异常|error|failed/i.test(message)) {
+      type = 'error';
+    } else {
+      type = 'success';
+    }
+  }
   let toastContainer = document.getElementById('toast-container');
   if (!toastContainer) {
     toastContainer = document.createElement('div');
