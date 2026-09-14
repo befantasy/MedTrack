@@ -19,6 +19,31 @@ def get_lab_reports(
         models.LabReport.user_id == current_user.id
     ).order_by(models.LabReport.report_date.desc()).all()
 
+def normalize_lab_code(code: str) -> str:
+    c = (code or "OTHER").upper().strip()
+    # 常用医学指标英文字母别名归一化
+    if c in ("CA19-9", "CA-199", "糖类抗原199", "糖类抗原19-9"):
+        return "CA199"
+    if c in ("CA-125", "糖类抗原125"):
+        return "CA125"
+    if c in ("CA-153", "CA15-3", "糖类抗原153"):
+        return "CA153"
+    if c in ("CYFRA211", "CYFRA 21-1"):
+        return "CYFRA21-1"
+    if c in ("CREA", "CRE", "血肌酐", "肌酐"):
+        return "CR"
+    if c in ("NEUT", "中性粒细胞", "中性粒细胞绝对值"):
+        return "NEUT#"
+    if c in ("GPT", "谷丙转氨酶"):
+        return "ALT"
+    if c in ("GOT", "谷草转氨酶"):
+        return "AST"
+    if c in ("GLUCOSE", "血糖", "空腹血糖"):
+        return "GLU"
+    if c in ("UA", "URIC", "尿酸"):
+        return "UA"
+    return c
+
 @router.post("/reports", response_model=schemas.LabReportOut)
 def create_lab_report(
     report_in: schemas.LabReportCreate,
@@ -39,7 +64,7 @@ def create_lab_report(
     db.refresh(report)
 
     for it in report_in.items:
-        code = (it.item_code or "OTHER").upper().strip()
+        code = normalize_lab_code(it.item_code)
         db_item = models.LabItem(
             report_id=report.id,
             user_id=current_user.id,

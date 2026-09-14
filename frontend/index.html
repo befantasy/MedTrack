@@ -113,16 +113,42 @@
 
     <!-- 选项卡 4: 指标动态看板 (ECharts) -->
     <section class="tab-content" id="tab-charts" style="display:none;">
+      <!-- 动态指标筛选与刷新工具栏 -->
+      <div class="card" style="margin-bottom:16px; padding:16px 20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:8px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-weight:700; font-size:1.05rem; color:#0f172a;">📊 检验指标动态时序监控看板</span>
+            <span id="charts-metrics-count" class="badge badge-blue">加载指标中...</span>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="ChartsModule.refresh()">🔄 刷新图表数据</button>
+        </div>
+        <div style="font-size:0.86rem; color:#64748b; margin-bottom:10px;">
+          系统已自动汇聚化验单中的所有检验指标。点击下方药丸徽章可快速聚焦或查看具体指标的时序演变趋势：
+        </div>
+        <div id="charts-metrics-pills-bar" style="display:flex; flex-wrap:wrap; gap:8px;">
+          <!-- 动态渲染用户实际拥有的指标药丸 -->
+        </div>
+      </div>
+
+      <!-- 单项指标深度聚焦卡片（点击任意药丸时展开） -->
+      <div id="charts-focus-card" class="card" style="display:none; margin-bottom:16px; border:1.5px solid #0284c7; background:#f0f9ff; padding:16px 20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <h3 id="charts-focus-title" style="font-size:1.05rem; font-weight:700; color:#0369a1; margin:0;">🔍 指标专属深度时序图</h3>
+          <button class="btn btn-secondary btn-sm" onclick="document.getElementById('charts-focus-card').style.display='none'">✖ 关闭聚焦图</button>
+        </div>
+        <div id="chart-focus-container" style="height:320px; background:#ffffff; border-radius:8px; padding:10px;"></div>
+      </div>
+
       <div class="grid-2">
         <div class="card">
-          <div id="chart-tumor-markers" style="height:360px;"></div>
+          <div id="chart-tumor-markers" style="height:380px;"></div>
         </div>
         <div class="card">
-          <div id="chart-safety-markers" style="height:360px;"></div>
+          <div id="chart-safety-markers" style="height:380px;"></div>
         </div>
       </div>
       <div class="card">
-        <div id="chart-chronic-markers" style="height:300px;"></div>
+        <div id="chart-chronic-markers" style="height:340px;"></div>
       </div>
     </section>
 
@@ -751,9 +777,9 @@
   </div>
 
   <!-- 引入逻辑脚本 (加版本号防浏览器强缓存) -->
-  <script src="js/api.js?v=2.1"></script>
-  <script src="js/timeline.js?v=2.1"></script>
-  <script src="js/charts.js?v=2.1"></script>
-  <script src="js/app.js?v=2.1"></script>
+  <script src="js/api.js?v=2.2"></script>
+  <script src="js/timeline.js?v=2.2"></script>
+  <script src="js/charts.js?v=2.2"></script>
+  <script src="js/app.js?v=2.2"></script>
 </body>
 </html>

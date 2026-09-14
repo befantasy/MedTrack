@@ -499,6 +499,12 @@ async function confirmSaveParsedDoc() {
 
     alert('🎉 成功存入您的病历档案！时间轴与图表已自动更新。');
     document.getElementById('upload-preview').style.display = 'none';
+    if (window.ChartsModule) {
+      ChartsModule.tumorChartInstance = null;
+      ChartsModule.safetyChartInstance = null;
+      ChartsModule.chronicChartInstance = null;
+      ChartsModule.focusChartInstance = null;
+    }
     await switchTab('timeline');
   } catch (err) {
     alert(`保存失败: ${err.message}`);
@@ -756,6 +762,25 @@ function renderConsultationReport(rep, container) {
           </table>
         </div>
       </div>
+
+      ${(rep.recent_lab_reports && rep.recent_lab_reports.length > 0) ? `
+      <div style="margin-top:20px;">
+        <h3 style="font-size:1.05rem; font-weight:700; color:#1e293b; margin-bottom:8px; border-left:3px solid var(--secondary); padding-left:8px;">
+          四、 近期化验单归档明细与 AI 综合解读
+        </h3>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          ${rep.recent_lab_reports.map(lr => `
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px 14px; font-size:0.88rem;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <span><strong>📅 ${escapeHtml(lr.date || '未注日期')}</strong> · ${escapeHtml(lr.type || '检验化验单')} (${escapeHtml(lr.hospital || '未注机构')})</span>
+                <span class="badge badge-green">已归档</span>
+              </div>
+              ${lr.summary ? `<div style="color:#0369a1; background:#f0f9ff; padding:6px 10px; border-radius:4px; margin-top:4px;">💡 <strong>AI 综合解读:</strong> ${escapeHtml(lr.summary)}</div>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      ` : ''}
     </div>
   `;
 }

@@ -27,41 +27,104 @@ class ReportGeneratorService:
         # 6. 获取病理与分子报告
         pathologies = db.query(models.PathologyReport).filter(models.PathologyReport.user_id == user_id).order_by(models.PathologyReport.report_date.desc()).all()
         
-        # 7. 获取最近化验单与高频指标演变 (取近 4 个采样日期的核心指标做横向对比)
-        lab_dates_query = db.query(models.LabItem.test_date).filter(models.LabItem.user_id == user_id).distinct().order_by(models.LabItem.test_date.desc()).limit(4).all()
-        recent_dates = [d[0] for d in lab_dates_query]
-        recent_dates.reverse() # 正序排列 便于看趋势
+        # 7. 获取最近保存的化验单记录 (展示全貌与 AI 总结)
+        lab_reports_db = db.query(models.LabReport).filter(
+            models.LabReport.user_id == user_id
+        ).order_by(models.LabReport.report_date.desc()).limit(5).all()
         
-        # 提取核心跟踪指标
-        key_indicator_codes = ["CEA", "CA199", "CA125", "AFP", "WBC", "PLT", "NEUT#", "ALT", "Cr", "GLU"]
-        indicator_comparison = []
-        
-        for code in key_indicator_codes:
-            items = db.query(models.LabItem).filter(
-                models.LabItem.user_id == user_id,
-                models.LabItem.item_code == code,
-                models.LabItem.test_date.in_(recent_dates)
-            ).all()
-            if items:
-                date_map = {item.test_date: item for item in items}
-                unit = items[0].unit
-                ref_range = items[0].ref_range or f"{items[0].ref_min}-{items[0].ref_max}"
-                row = {
-                    "code": code,
-                    "name": items[0].item_name,
-                    "category": items[0].category,
-                    "unit": unit,
-                    "ref_range": ref_range,
-                    "values": [
-                        {
-                            "date": d,
-                            "val": date_map[d].value if d in date_map else None,
-                            "val_text": date_map[d].value_text if d in date_map else "-",
-                            "status": date_map[d].status if d in date_map else "NORMAL"
-                        } for d in recent_dates
-                    ]
+        # 8. 获取有效采样日期 (取近 6 个采样日期做横向对比)
+        lab_dates_query = db.query(models.LabItem.test_date).filter(
+            models.LabItem.user_id == user_id,
+            models.LabItem.test_date != None,
+            models.LabItem.test_date != ""
+        ).distinct().order_by(models.LabItem.test_date.desc()).limit(6).all()
+        recent_dates = [d[0] for d in lab_dates_query if d[0]]
+        recent_dates.reverse() # 正序排列 便于看演变趋势
+
+        # 别名归一化映射表
+        def get_canonical_code(raw_code: str) -> str:
+            c = (raw_code or "").upper().strip()
+            if c in ("CA19-9", "CA-199", "糖类抗原199", "糖类抗原19-9"):
+                return "CA199"
+            if c in ("CA-125", "糖类抗原125"):
+                return "CA125"
+            if c in ("CA-153", "CA15-3", "糖类抗原153"):
+                return "CA153"
+            if c in ("CYFRA211", "CYFRA 21-1"):
+                return "CYFRA21-1"
+            if c in ("CREA", "CRE", "血肌酐", "肌酐"):
+                return "CR"
+            if c in ("NEUT", "中性粒细胞", "中性粒细胞绝对值"):
+                return "NEUT#"
+            if c in ("GPT", "谷丙转氨酶"):
+                return "ALT"
+            if c in ("GOT", "谷草转氨酶"):
+                return "AST"
+            if c in ("GLUCOSE", "血糖", "空腹血糖"):
+                return "GLU"
+            if c in ("UA", "URIC", "尿酸"):
+                return "UA"
+            return c
+
+        # 动态获取患者在这些日期内所有实际存在的指标 (支持动态展现用户上传的任意化验指标)
+        items_in_dates = db.query(models.LabItem).filter(
+            models.LabItem.user_id == user_id,
+            models.LabItem.test_date.in_(recent_dates)
+        ).all()
+
+        indicator_groups = {}
+        for it in items_in_dates:
+            canon = get_canonical_code(it.item_code)
+            if canon not in indicator_groups:
+                indicator_groups[canon] = {
+                    "code": it.item_code,
+                    "name": it.item_name or it.item_code,
+                    "category": it.category or "other",
+                    "unit": it.unit or "",
+                    "ref_range": it.ref_range or (f"{it.ref_min}-{it.ref_max}" if it.ref_min is not None and it.ref_max is not None else ""),
+                    "has_abnormal": False,
+                    "date_map": {}
                 }
-                indicator_comparison.append(row)
+            if it.status in ("HIGH", "LOW", "ABNORMAL"):
+                indicator_groups[canon]["has_abnormal"] = True
+            
+            indicator_groups[canon]["date_map"][it.test_date] = it
+
+        # 临床优先级排序：1. 肿瘤标志物 2. 异常指标 3. 毒副器官指标 4. 慢病指标 5. 其他
+        def sort_priority(item_info):
+            cat = item_info["category"]
+            if cat == "tumor_marker":
+                return 10
+            if item_info["has_abnormal"]:
+                return 20
+            if cat == "safety_toxicity":
+                return 30
+            if cat == "chronic":
+                return 40
+            return 50
+
+        sorted_indicators = sorted(indicator_groups.values(), key=sort_priority)
+
+        indicator_comparison = []
+        for info in sorted_indicators:
+            date_map = info["date_map"]
+            values = []
+            for d in recent_dates:
+                it = date_map.get(d)
+                values.append({
+                    "date": d,
+                    "val": it.value if it else None,
+                    "val_text": it.value_text if it else "-",
+                    "status": it.status if it else "NORMAL"
+                })
+            indicator_comparison.append({
+                "code": info["code"],
+                "name": info["name"],
+                "category": info["category"],
+                "unit": info["unit"],
+                "ref_range": info["ref_range"],
+                "values": values
+            })
 
         # 解析 JSON 字段
         markers_parsed = {}
@@ -152,6 +215,15 @@ class ReportGeneratorService:
                     "ihc": p.ihc_markers,
                     "gene": p.genetic_testing
                 } for p in pathologies
+            ],
+            "recent_lab_reports": [
+                {
+                    "id": r.id,
+                    "type": r.report_type,
+                    "date": r.report_date,
+                    "hospital": r.hospital,
+                    "summary": r.ai_summary
+                } for r in lab_reports_db
             ],
             "lab_trend_comparison": {
                 "dates": recent_dates,

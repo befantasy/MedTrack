@@ -8,13 +8,43 @@ from auth import get_current_user
 
 router = APIRouter(prefix="/charts", tags=["指标趋势图表数据"])
 
+ALIAS_GROUPS = [
+    ["CA199", "CA19-9", "CA-199", "糖类抗原199", "糖类抗原19-9"],
+    ["CA125", "CA-125", "糖类抗原125"],
+    ["CA153", "CA-153", "CA15-3", "糖类抗原153"],
+    ["CYFRA21-1", "CYFRA211", "CYFRA 21-1"],
+    ["AFP", "甲胎蛋白"],
+    ["NSE"],
+    ["CEA", "癌胚抗原"],
+    ["WBC", "白细胞", "白细胞计数"],
+    ["PLT", "血小板", "血小板计数"],
+    ["NEUT#", "NEUT", "中性粒细胞绝对值", "中性粒细胞"],
+    ["HGB", "HB", "血红蛋白"],
+    ["ALT", "GPT", "谷丙转氨酶"],
+    ["AST", "GOT", "谷草转氨酶"],
+    ["CR", "CREA", "CRE", "血肌酐", "肌酐"],
+    ["GLU", "GLUCOSE", "血糖", "空腹血糖"],
+    ["UA", "URIC", "尿酸"],
+    ["TBIL", "总胆红素"],
+    ["ALB", "白蛋白"]
+]
+
+ALIAS_MAP = {}
+CANONICAL_MAP = {}
+for group in ALIAS_GROUPS:
+    canonical = group[0].upper()
+    for alias in group:
+        upper_alias = alias.upper()
+        ALIAS_MAP[upper_alias] = [a.upper() for a in group]
+        CANONICAL_MAP[upper_alias] = canonical
+
 @router.get("/available-metrics")
 def get_available_metrics(
     target_user_id: int = None,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """获取指定用户所有已记录的指标清单"""
+    """获取指定用户所有已记录的指标清单（智能去重与归一化）"""
     user_id = target_user_id if (current_user.is_admin and target_user_id) else current_user.id
     items = db.query(
         models.LabItem.item_code,
@@ -22,16 +52,26 @@ def get_available_metrics(
         models.LabItem.category,
         models.LabItem.unit
     ).filter(
-        models.LabItem.user_id == user_id
+        models.LabItem.user_id == user_id,
+        models.LabItem.item_code != None,
+        models.LabItem.item_code != ""
     ).distinct().all()
 
     result = []
+    seen = set()
     for it in items:
+        raw_code = it.item_code.strip()
+        code_upper = raw_code.upper()
+        canon = CANONICAL_MAP.get(code_upper, code_upper)
+        if canon in seen:
+            continue
+        seen.add(canon)
         result.append({
-            "code": it.item_code,
-            "name": it.item_name,
-            "category": it.category,
-            "unit": it.unit
+            "code": canon,
+            "raw_code": raw_code,
+            "name": it.item_name or canon,
+            "category": it.category or "other",
+            "unit": it.unit or ""
         })
     return result
 
@@ -43,22 +83,33 @@ def get_chart_series(
     db: Session = Depends(get_db)
 ):
     """
-    根据指定指标代码集合，返回标准 ECharts 时序数据集
+    根据指定指标代码集合，返回标准 ECharts 时序数据集（支持别名智能关联与归一化）
     """
     user_id = target_user_id if (current_user.is_admin and target_user_id) else current_user.id
     code_list = [c.strip().upper() for c in codes.split(",") if c.strip()]
     if not code_list:
         return {"dates": [], "series": []}
 
-    # 查询该用户所有相关的指标记录并按日期正序排列
+    # 构建正向别名查询集合与反向映射
+    query_codes = set()
+    code_to_canonical = {}
+    for req_c in code_list:
+        matched_aliases = ALIAS_MAP.get(req_c, [req_c])
+        for a in matched_aliases:
+            query_codes.add(a)
+            code_to_canonical[a] = req_c
+
+    # 查询该用户所有相关的指标记录（过滤空日期与空数值），并按日期正序排列
     items = db.query(models.LabItem).filter(
         models.LabItem.user_id == user_id,
-        models.LabItem.item_code.in_(code_list),
-        models.LabItem.value != None
+        models.LabItem.item_code.in_(list(query_codes)),
+        models.LabItem.value != None,
+        models.LabItem.test_date != None,
+        models.LabItem.test_date != ""
     ).order_by(models.LabItem.test_date.asc()).all()
 
     # 提取所有不重复的采样日期
-    dates = sorted(list({it.test_date for it in items}))
+    dates = sorted(list({it.test_date for it in items if it.test_date}))
 
     # 构造每个指标的序列数据
     series_map = {}
@@ -68,11 +119,12 @@ def get_chart_series(
         series_map[c] = {d: None for d in dates}
 
     for it in items:
-        c = it.item_code
-        if c in series_map:
-            series_map[c][it.test_date] = it.value
-            if c not in info_map:
-                info_map[c] = {
+        raw_c = (it.item_code or "").upper().strip()
+        canon_c = code_to_canonical.get(raw_c, it.item_code)
+        if canon_c in series_map:
+            series_map[canon_c][it.test_date] = it.value
+            if canon_c not in info_map:
+                info_map[canon_c] = {
                     "name": it.item_name,
                     "unit": it.unit,
                     "ref_min": it.ref_min,
