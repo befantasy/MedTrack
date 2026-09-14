@@ -50,41 +50,46 @@ def create_lab_report(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """手动或通过 AI 解析确认后新建化验单及检验明细项"""
-    report = models.LabReport(
-        user_id=current_user.id,
-        report_type=report_in.report_type or "检验化验单",
-        report_date=report_in.report_date,
-        hospital=report_in.hospital or "",
-        raw_file_url=report_in.raw_file_url or "",
-        ai_summary=report_in.ai_summary or ""
-    )
-    db.add(report)
-    db.commit()
-    db.refresh(report)
-
-    for it in report_in.items:
-        code = normalize_lab_code(it.item_code)
-        db_item = models.LabItem(
-            report_id=report.id,
+    import logging
+    try:
+        """手动或通过 AI 解析确认后新建化验单及检验明细项"""
+        report = models.LabReport(
             user_id=current_user.id,
-            item_name=it.item_name or code,
-            item_code=code,
-            category=it.category or "other",
-            value=it.value,
-            value_text=it.value_text or (str(it.value) if it.value is not None else ""),
-            unit=it.unit or "",
-            ref_min=it.ref_min,
-            ref_max=it.ref_max,
-            ref_range=it.ref_range or "",
-            status=it.status or "NORMAL",
-            test_date=it.test_date or report.report_date
+            report_type=report_in.report_type or "检验化验单",
+            report_date=report_in.report_date,
+            hospital=report_in.hospital or "",
+            raw_file_url=report_in.raw_file_url or "",
+            ai_summary=report_in.ai_summary or ""
         )
-        db.add(db_item)
+        db.add(report)
+        db.commit()
+        db.refresh(report)
 
-    db.commit()
-    db.refresh(report)
-    return report
+        for it in report_in.items:
+            code = normalize_lab_code(it.item_code)
+            db_item = models.LabItem(
+                report_id=report.id,
+                user_id=current_user.id,
+                item_name=it.item_name or code,
+                item_code=code,
+                category=it.category or "other",
+                value=it.value,
+                value_text=it.value_text or (str(it.value) if it.value is not None else ""),
+                unit=it.unit or "",
+                ref_min=it.ref_min,
+                ref_max=it.ref_max,
+                ref_range=it.ref_range or "",
+                status=it.status or "NORMAL",
+                test_date=it.test_date or report.report_date
+            )
+            db.add(db_item)
+
+        db.commit()
+        db.refresh(report)
+        return report
+    except Exception as e:
+        logging.exception("Failed to create lab report")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/reports/{id}", response_model=schemas.LabReportOut)
 def get_lab_report(
