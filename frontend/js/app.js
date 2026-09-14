@@ -305,7 +305,7 @@ async function onFileSelected(event) {
           statusBox.innerHTML = `
             <div style="display:flex; align-items:center; justify-content:center; gap:10px; color:#0284c7; padding:12px;">
               <div style="width:20px; height:20px; border:3px solid #e0f2fe; border-top-color:#0284c7; border-radius:50%; animation:spin 1s linear infinite;"></div>
-              <span>后台正逐一安全解析中以防限流... 已完成 ${statusData.completed} / ${statusData.total} 张单据</span>
+              <span>AI分析中... 已完成 ${statusData.completed} / ${statusData.total} 张</span>
             </div>
           `;
         } else if (statusData.status === 'completed' || statusData.status === 'error') {
