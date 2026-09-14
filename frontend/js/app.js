@@ -245,6 +245,8 @@ async function switchTab(tabId) {
 
   if (tabId === 'timeline') {
     await TimelineModule.load('timeline-container');
+  } else if (tabId === 'upload') {
+    await loadUploadedDocs();
   } else if (tabId === 'charts') {
     await ChartsModule.initAll();
   } else if (tabId === 'treatments') {
@@ -664,6 +666,81 @@ async function deleteTimelineEvent(type, id) {
   }
 }
 window.deleteTimelineEvent = deleteTimelineEvent;
+
+// ==================== 单据识别管理 (Uploaded Docs) ====================
+async function loadUploadedDocs() {
+  const container = document.getElementById('uploaded-docs-list');
+  if (!container) return;
+  container.innerHTML = '<div style="color:#64748b; padding:20px; text-align:center;">正在加载归档记录...</div>';
+  
+  try {
+    const targetUserId = window.inspectTargetUserId || null;
+    const events = await API.getTimeline(targetUserId);
+    const docs = events.filter(e => ['lab', 'imaging', 'pathology'].includes(e.event_type));
+    
+    if (docs.length === 0) {
+      container.innerHTML = '<div style="color:#94a3b8; padding:20px; text-align:center;">暂无已归档的化验单、影像或病理报告记录。</div>';
+      return;
+    }
+    
+    const typeConfig = {
+      imaging: { badge: 'badge-green', icon: '🩻', name: '影像报告' },
+      lab: { badge: 'badge-blue', icon: '🧪', name: '化验单' },
+      pathology: { badge: 'badge-purple', icon: '🔬', name: '病理报告' }
+    };
+    
+    let html = '<div style="display:flex; flex-direction:column; gap:12px;">';
+    docs.forEach(doc => {
+      const cfg = typeConfig[doc.event_type];
+      const realId = doc.id.split('_')[1];
+      html += `
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:14px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="margin-bottom:6px;">
+              <span style="margin-right:6px;">${cfg.icon}</span>
+              <span class="badge ${cfg.badge}" style="margin-right:8px;">${cfg.name}</span>
+              <strong style="color:#0f172a;">${escapeHtml(doc.title)}</strong>
+              <span style="font-size:0.85rem; color:#64748b; margin-left:8px;">📅 ${doc.event_date}</span>
+            </div>
+            <div style="font-size:0.9rem; color:#475569;">${escapeHtml(doc.summary)}</div>
+          </div>
+          <div>
+            <button class="btn btn-secondary btn-sm" style="color:#ef4444; border-color:#fee2e2; background:#fef2f2;" onclick="deleteUploadedDoc('${doc.event_type}', ${realId})">🗑️ 删除记录</button>
+          </div>
+        </div>
+      `;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+  } catch (err) {
+    container.innerHTML = `<div style="color:#ef4444; padding:20px;">加载失败: ${err.message}</div>`;
+  }
+}
+
+async function deleteUploadedDoc(type, id) {
+  const typeNameMap = { lab: '化验单', imaging: '影像报告', pathology: '病理报告' };
+  if (!confirm(`确认彻底删除这份「${typeNameMap[type] || '记录'}」吗？\n删除后将无法恢复，且图表中的相关指标数据也将从看板中移除。`)) return;
+  try {
+    if (type === 'lab') await API.deleteLabReport(id);
+    else if (type === 'imaging') await API.deleteImagingReport(id);
+    else if (type === 'pathology') await API.deletePathology(id);
+    
+    alert('删除成功！');
+    await loadUploadedDocs();
+    
+    // 清理图表缓存使其下次切换时刷新
+    if (window.ChartsModule) {
+      window.ChartsModule.tumorChartInstance = null;
+      window.ChartsModule.safetyChartInstance = null;
+      window.ChartsModule.chronicChartInstance = null;
+      window.ChartsModule.focusChartInstance = null;
+    }
+  } catch (err) {
+    alert('删除失败: ' + err.message);
+  }
+}
+window.loadUploadedDocs = loadUploadedDocs;
+window.deleteUploadedDoc = deleteUploadedDoc;
 
 // ==================== 就诊病历汇总与分享 ====================
 async function loadConsultationReport() {
