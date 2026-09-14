@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>患者病程与就诊汇报单 | 医生/专家查阅专区</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body { background-color: #f1f5f9; }
+    .share-container { max-width: 960px; margin: 24px auto; padding: 0 16px; }
+    .doc-header {
+      background: white;
+      border-radius: var(--radius-md);
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+      border-top: 5px solid var(--primary);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="share-container">
+    <!-- 顶部状态条 -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:24px;">🧬</span>
+        <strong style="font-size:1.1rem; color:#0f172a;">MedTrack-Onco 患者病程汇报单</strong>
+        <span class="badge badge-blue">医生查阅只读模式</span>
+      </div>
+      <div>
+        <button class="btn btn-primary btn-sm no-print" onclick="window.print()">🖨️ 打印 / 保存 PDF</button>
+      </div>
+    </div>
+
+    <!-- 访问密码验证框 (如果设置了提取码) -->
+    <div id="pin-prompt-box" class="card" style="display:none; max-width:400px; margin:60px auto; text-align:center;">
+      <div style="font-size:32px; margin-bottom:8px;">🔒</div>
+      <h3 style="margin-bottom:8px; font-size:1.1rem;">请输入访问提取码</h3>
+      <p style="font-size:0.85rem; color:#64748b; margin-bottom:16px;">该病历受患者隐私保护，请输入 4 位访问码查看完整信息：</p>
+      <input type="text" id="share-pin-input" class="form-input" style="text-align:center; font-size:1.2rem; letter-spacing:4px; margin-bottom:12px;" maxlength="8" placeholder="****">
+      <button class="btn btn-primary" style="width:100%;" onclick="loadReportWithPin()">确认查阅</button>
+      <div id="pin-error" style="color:#ef4444; font-size:0.85rem; margin-top:8px;"></div>
+    </div>
+
+    <!-- 报告内容主体 -->
+    <div id="report-view-content" style="display:none;"></div>
+
+    <!-- 错误与加载提示 -->
+    <div id="loading-box" style="text-align:center; padding:60px 20px; color:#64748b;">
+      正在安全获取病程汇报数据...
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!token) {
+        document.getElementById('loading-box').innerHTML = '<div style="color:red;">❌ 无效的访问链接</div>';
+        return;
+      }
+      await fetchReport();
+    });
+
+    async function fetchReport(pin = '') {
+      const loadingBox = document.getElementById('loading-box');
+      const pinBox = document.getElementById('pin-prompt-box');
+      const contentBox = document.getElementById('report-view-content');
+
+      try {
+        const res = await API.viewSharedReport(token, pin);
+        loadingBox.style.display = 'none';
+
+        if (res.need_code) {
+          pinBox.style.display = 'block';
+          contentBox.style.display = 'none';
+          return;
+        }
+
+        pinBox.style.display = 'none';
+        contentBox.style.display = 'block';
+        renderReport(res.report, res.expires_at);
+      } catch (err) {
+        loadingBox.innerHTML = `<div style="color:red;">❌ ${err.message}</div>`;
+      }
+    }
+
+    async function loadReportWithPin() {
+      const pin = document.getElementById('share-pin-input').value.trim();
+      if (!pin) return;
+      await fetchReport(pin);
+    }
+
+    function renderReport(rep, expireTime) {
+      const box = document.getElementById('report-view-content');
+      const p = rep.profile;
+      const t = rep.treatment_summary;
+      const img = rep.latest_imaging || [];
+      const labTrend = rep.lab_trend_comparison || { dates: [], indicators: [] };
+
+      const markerText = Object.entries(p.molecular_markers || {}).map(([k, v]) => `${k}: ${v}`).join('； ') || '未行基因突变检测';
+      const comorbText = (p.chronic_comorbidities || []).join('、') || '无明确合并慢病';
+
+      let labRows = (labTrend.indicators || []).map(row => {
+        let cells = row.values.map(v => {
+          let stClass = '';
+          if (v.status === 'HIGH') stClass = 'style="color:#ef4444; font-weight:600;"';
+          if (v.status === 'LOW') stClass = 'style="color:#f59e0b; font-weight:600;"';
+          return `<td ${stClass}>${v.val !== null ? v.val : v.val_text}</td>`;
+        }).join('');
+        return `
+          <tr>
+            <td><strong>${escapeHtml(row.name)}</strong> (${row.code})</td>
+            <td>${escapeHtml(row.ref_range)} ${row.unit}</td>
+            ${cells}
+          </tr>
+        `;
+      }).join('');
+
+      let dateHeaders = (labTrend.dates || []).map(d => `<th>${d}</th>`).join('');
+
+      box.innerHTML = `
+        <div class="doc-header">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap;">
+            <div>
+              <h1 style="font-size:1.45rem; font-weight:800; color:#0f172a;">${escapeHtml(p.name)} - 肿瘤病程就诊汇报单</h1>
+              <div style="font-size:0.85rem; color:#64748b; margin-top:4px;">
+                报告生成时间: ${rep.generated_at} | 链接有效至: ${expireTime || '近期'}
+              </div>
+            </div>
+            <div style="text-align:right;">
+              <span class="badge badge-purple" style="font-size:0.85rem; padding:4px 10px;">${escapeHtml(p.primary_site)}</span>
+              <span class="badge badge-blue" style="font-size:0.85rem; padding:4px 10px;">${escapeHtml(p.pathology_type)}</span>
+            </div>
+          </div>
+
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:14px; margin-top:16px;">
+            <div style="display:flex; flex-wrap:wrap; gap:16px; font-size:0.92rem; color:#334155;">
+              <span><strong>初诊分期:</strong> ${escapeHtml(p.initial_staging || '未详')}</span>
+              <span><strong>当前治疗阶段:</strong> <span class="badge badge-green">${escapeHtml(p.current_staging || '维持/随访')}</span></span>
+              <span><strong>ECOG体力评分:</strong> ${escapeHtml(p.ecog_score)}分</span>
+            </div>
+            <div style="margin-top:8px; font-size:0.88rem; color:#0369a1;">
+              <strong>分子突变与靶点:</strong> ${markerText}
+            </div>
+            <div style="margin-top:6px; font-size:0.88rem; color:#475569;">
+              <strong>合并慢性病与用药:</strong> ${comorbText} | 过敏史: ${escapeHtml(p.allergies)}
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 style="font-size:1.05rem; font-weight:700; color:#1e293b; margin-bottom:12px; border-left:4px solid var(--secondary); padding-left:8px;">
+            一、 既往主要抗肿瘤治疗历程
+          </h3>
+          <div style="font-size:0.92rem; line-height:1.7;">
+            ${t.has_surgery ? `
+              <div style="margin-bottom:6px;"><strong>外科手术:</strong> ${t.surgeries.map(s => `[${s.date}] ${s.name} (切缘: ${s.margins}, 淋巴结清扫: ${s.lymph_nodes})`).join('； ')}</div>
+            ` : '<div style="color:#64748b; margin-bottom:6px;"><strong>外科手术:</strong> 未行手术干预</div>'}
+
+            ${t.has_radiotherapy ? `
+              <div style="margin-bottom:6px;"><strong>放射治疗:</strong> ${t.radiotherapies.map(r => `[${r.date}] 靶区: ${r.site} (${r.dose}, ${r.fractions})`).join('； ')}</div>
+            ` : ''}
+
+            ${t.has_systemic_therapy ? `
+              <div><strong>系统药物治疗:</strong> ${t.systemic_therapies.map(th => `[${th.date}] ${th.line}: ${th.regimen} (${th.cycle})`).join('； ')}</div>
+            ` : '<div style="color:#64748b;"><strong>系统药物:</strong> 暂无治疗周期记录</div>'}
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 style="font-size:1.05rem; font-weight:700; color:#1e293b; margin-bottom:12px; border-left:4px solid var(--secondary); padding-left:8px;">
+            二、 近期影像学 (CT/MRI/PET) 疗效评估
+          </h3>
+          ${img.length > 0 ? img.map(im => `
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:12px; border-radius:8px; margin-bottom:10px;">
+              <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                <strong>📅 ${im.date} ${im.modality} (${im.body_part})</strong>
+                <span class="badge badge-blue">RECIST: ${im.recist}</span>
+              </div>
+              <div style="font-size:0.88rem; color:#334155; margin-top:4px;"><strong>诊断结论:</strong> ${escapeHtml(im.impression)}</div>
+            </div>
+          `).join('') : '<p style="font-size:0.9rem; color:#94a3b8;">暂无近期影像检查记录</p>'}
+        </div>
+
+        <div class="card">
+          <h3 style="font-size:1.05rem; font-weight:700; color:#1e293b; margin-bottom:12px; border-left:4px solid var(--secondary); padding-left:8px;">
+            三、 关键肿瘤标志物与治疗安全性指标对比
+          </h3>
+          <div class="table-responsive">
+            <table class="med-table">
+              <thead>
+                <tr><th>检验项目</th><th>参考范围</th>${dateHeaders}</tr>
+              </thead>
+              <tbody>${labRows || '<tr><td colspan="5" style="text-align:center;color:#94a3b8;">暂无指标对比数据</td></tr>'}</tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>

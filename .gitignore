@@ -1,0 +1,32 @@
+# 敏感配置文件
+.env
+*.env
+
+# Python 缓存与虚拟环境
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# 上传文件与测试图片
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# 数据库文件
+*.db
+*.sqlite3
+data/
+
+# IDE 与操作系统文件
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 临时与调研目录
+tmp_research/
+*.log
