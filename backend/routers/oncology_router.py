@@ -22,6 +22,17 @@ def create_surgery(data_in: schemas.SurgeryCreate, current_user: models.User = D
     db.refresh(item)
     return item
 
+@router.put("/surgeries/{id}", response_model=schemas.SurgeryOut)
+def update_surgery(id: int, data_in: schemas.SurgeryUpdate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    item = db.query(models.Surgery).filter(models.Surgery.id == id, models.Surgery.user_id == current_user.id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="手术记录未找到")
+    for key, val in data_in.model_dump(exclude_unset=True).items():
+        setattr(item, key, val)
+    db.commit()
+    db.refresh(item)
+    return item
+
 @router.delete("/surgeries/{id}")
 def delete_surgery(id: int, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     item = db.query(models.Surgery).filter(models.Surgery.id == id, models.Surgery.user_id == current_user.id).first()
@@ -44,6 +55,17 @@ def create_radiotherapy(data_in: schemas.RadiotherapyCreate, current_user: model
     db.refresh(item)
     return item
 
+@router.put("/radiotherapies/{id}", response_model=schemas.RadiotherapyOut)
+def update_radiotherapy(id: int, data_in: schemas.RadiotherapyUpdate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    item = db.query(models.Radiotherapy).filter(models.Radiotherapy.id == id, models.Radiotherapy.user_id == current_user.id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="放疗记录未找到")
+    for key, val in data_in.model_dump(exclude_unset=True).items():
+        setattr(item, key, val)
+    db.commit()
+    db.refresh(item)
+    return item
+
 @router.delete("/radiotherapies/{id}")
 def delete_radiotherapy(id: int, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     item = db.query(models.Radiotherapy).filter(models.Radiotherapy.id == id, models.Radiotherapy.user_id == current_user.id).first()
@@ -62,6 +84,17 @@ def get_therapies(current_user: models.User = Depends(get_current_user), db: Ses
 def create_therapy(data_in: schemas.SystemicTherapyCreate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     item = models.SystemicTherapy(**data_in.model_dump(), user_id=current_user.id)
     db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+@router.put("/therapies/{id}", response_model=schemas.SystemicTherapyOut)
+def update_therapy(id: int, data_in: schemas.SystemicTherapyUpdate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    item = db.query(models.SystemicTherapy).filter(models.SystemicTherapy.id == id, models.SystemicTherapy.user_id == current_user.id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="治疗记录未找到")
+    for key, val in data_in.model_dump(exclude_unset=True).items():
+        setattr(item, key, val)
     db.commit()
     db.refresh(item)
     return item

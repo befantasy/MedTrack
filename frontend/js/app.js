@@ -417,7 +417,11 @@ async function confirmSaveParsedDoc() {
   }
 }
 
-// ==================== 专科治疗管理 (手术/放疗/系统药物) ====================
+// ==================== 专科治疗管理 (手术/放疗/药物) ====================
+let currentSurgeries = [];
+let currentRadios = [];
+let currentTherapies = [];
+
 async function loadTreatmentsList() {
   const container = document.getElementById('treatments-list-container');
   if (!container) return;
@@ -428,75 +432,88 @@ async function loadTreatmentsList() {
       API.getRadiotherapies(),
       API.getTherapies()
     ]);
+    currentSurgeries = surgeries || [];
+    currentRadios = radios || [];
+    currentTherapies = therapies || [];
 
-    let surgHtml = surgeries.map(s => `
+    let surgHtml = currentSurgeries.map(s => `
       <div class="card" style="margin-bottom:12px; padding:14px;">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+          <div style="flex:1;">
             <strong>${escapeHtml(s.surgery_name)}</strong>
-            <span class="badge badge-red" style="margin-left:8px;">切缘: ${escapeHtml(s.margins)}</span>
+            <span class="badge badge-red" style="margin-left:8px;">切缘: ${escapeHtml(s.margins || 'R0')}</span>
             <div style="font-size:0.85rem; color:#64748b; margin-top:4px;">
               日期: ${s.surgery_date} | 医院: ${escapeHtml(s.hospital || '未注')} | 淋巴结清扫: ${escapeHtml(s.lymph_nodes || '未详')}
             </div>
             ${s.pathology_summary ? `<div style="font-size:0.85rem; color:#334155; margin-top:4px;">病理摘要: ${escapeHtml(s.pathology_summary)}</div>` : ''}
           </div>
-          <button class="btn btn-danger btn-sm" onclick="deleteSurgeryItem(${s.id})">删除</button>
+          <div style="display:flex; gap:6px; flex-shrink:0;">
+            <button class="btn btn-secondary btn-sm" onclick="openEditSurgeryModal(${s.id})">编辑</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteSurgeryItem(${s.id})">删除</button>
+          </div>
         </div>
       </div>
     `).join('') || '<p style="color:#94a3b8; font-size:0.9rem;">暂无手术记录</p>';
 
-    let radioHtml = radios.map(r => `
+    let radioHtml = currentRadios.map(r => `
       <div class="card" style="margin-bottom:12px; padding:14px;">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+          <div style="flex:1;">
             <strong>放疗靶区: ${escapeHtml(r.site)}</strong>
-            <span class="badge badge-orange" style="margin-left:8px;">${escapeHtml(r.total_dose)} / ${escapeHtml(r.fractions)}</span>
+            <span class="badge badge-orange" style="margin-left:8px;">${escapeHtml(r.total_dose || '')} ${r.fractions ? '/ ' + escapeHtml(r.fractions) : ''}</span>
             <div style="font-size:0.85rem; color:#64748b; margin-top:4px;">
               技术: ${escapeHtml(r.technique || '标准')} | 周期: ${r.start_date} ~ ${r.end_date || '进行中'}
             </div>
             ${r.toxicity_notes ? `<div style="font-size:0.85rem; color:#d97706; margin-top:4px;">反应: ${escapeHtml(r.toxicity_notes)}</div>` : ''}
           </div>
-          <button class="btn btn-danger btn-sm" onclick="deleteRadioItem(${r.id})">删除</button>
+          <div style="display:flex; gap:6px; flex-shrink:0;">
+            <button class="btn btn-secondary btn-sm" onclick="openEditRadioModal(${r.id})">编辑</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteRadioItem(${r.id})">删除</button>
+          </div>
         </div>
       </div>
     `).join('') || '<p style="color:#94a3b8; font-size:0.9rem;">暂无放疗记录</p>';
 
-    let therapyHtml = therapies.map(t => `
+    let therapyHtml = currentTherapies.map(t => `
       <div class="card" style="margin-bottom:12px; padding:14px;">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+          <div style="flex:1;">
             <span class="badge badge-blue">${escapeHtml(t.treatment_line)}</span>
             <strong style="margin-left:6px;">${escapeHtml(t.regimen_name)} (第 ${t.cycle_number} 周期)</strong>
             <div style="font-size:0.85rem; color:#64748b; margin-top:4px;">
-              类别: ${escapeHtml(t.therapy_type)} | 周期: ${t.start_date} ~ ${t.end_date || '维持用药中'}
+              类别: ${escapeHtml(t.therapy_type)} | 周期: ${t.start_date} ~ ${t.end_date || '用药中'}
             </div>
-            ${t.adverse_events ? `<div style="font-size:0.85rem; color:#dc2626; margin-top:4px;">毒副反应: ${escapeHtml(t.adverse_events)}</div>` : ''}
+            ${t.drugs_detail ? `<div style="font-size:0.85rem; color:#0369a1; margin-top:4px;">用药规格: ${escapeHtml(t.drugs_detail)}</div>` : ''}
+            ${t.adverse_events ? `<div style="font-size:0.85rem; color:#dc2626; margin-top:4px;">不良反应: ${escapeHtml(t.adverse_events)}</div>` : ''}
           </div>
-          <button class="btn btn-danger btn-sm" onclick="deleteTherapyItem(${t.id})">删除</button>
+          <div style="display:flex; gap:6px; flex-shrink:0;">
+            <button class="btn btn-secondary btn-sm" onclick="openEditTherapyModal(${t.id})">编辑</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteTherapyItem(${t.id})">删除</button>
+          </div>
         </div>
       </div>
-    `).join('') || '<p style="color:#94a3b8; font-size:0.9rem;">暂无系统用药记录</p>';
+    `).join('') || '<p style="color:#94a3b8; font-size:0.9rem;">暂无药物治疗记录</p>';
 
     container.innerHTML = `
       <div class="grid-3">
         <div>
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-            <h3 style="font-size:1.05rem; font-weight:700;">🔪 外科手术记录</h3>
+            <h3 style="font-size:1.05rem; font-weight:700;">🔪 手术</h3>
             <button class="btn btn-primary btn-sm" onclick="openAddSurgeryModal()">+ 新增手术</button>
           </div>
           ${surgHtml}
         </div>
         <div>
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-            <h3 style="font-size:1.05rem; font-weight:700;">⚡ 放射治疗记录</h3>
+            <h3 style="font-size:1.05rem; font-weight:700;">⚡ 放疗</h3>
             <button class="btn btn-primary btn-sm" onclick="openAddRadioModal()">+ 新增放疗</button>
           </div>
           ${radioHtml}
         </div>
         <div>
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-            <h3 style="font-size:1.05rem; font-weight:700;">💊 化疗/靶向/免疫周期</h3>
-            <button class="btn btn-primary btn-sm" onclick="openAddTherapyModal()">+ 登记周期</button>
+            <h3 style="font-size:1.05rem; font-weight:700;">💊 药物</h3>
+            <button class="btn btn-primary btn-sm" onclick="openAddTherapyModal()">+ 新增药物</button>
           </div>
           ${therapyHtml}
         </div>
@@ -509,18 +526,30 @@ async function loadTreatmentsList() {
 
 async function deleteSurgeryItem(id) {
   if (!confirm('确认删除该手术记录？')) return;
-  await API.deleteSurgery(id);
-  await loadTreatmentsList();
+  try {
+    await API.deleteSurgery(id);
+    await loadTreatmentsList();
+  } catch (err) {
+    alert('删除失败: ' + err.message);
+  }
 }
 async function deleteRadioItem(id) {
   if (!confirm('确认删除该放疗记录？')) return;
-  await API.deleteRadiotherapy(id);
-  await loadTreatmentsList();
+  try {
+    await API.deleteRadiotherapy(id);
+    await loadTreatmentsList();
+  } catch (err) {
+    alert('删除失败: ' + err.message);
+  }
 }
 async function deleteTherapyItem(id) {
-  if (!confirm('确认删除该治疗周期记录？')) return;
-  await API.deleteTherapy(id);
-  await loadTreatmentsList();
+  if (!confirm('确认删除该药物治疗记录？')) return;
+  try {
+    await API.deleteTherapy(id);
+    await loadTreatmentsList();
+  } catch (err) {
+    alert('删除失败: ' + err.message);
+  }
 }
 
 // ==================== 就诊病历汇总与分享 ====================
@@ -1023,10 +1052,43 @@ function copyShareLink() {
   alert('已复制到剪贴板！医生无需登录，在手机微信或浏览器中即可直接查阅整份病历。');
 }
 
-// 新增手术/放疗/化疗弹窗
-function openAddSurgeryModal() { document.getElementById('surgery-modal').style.display = 'flex'; }
-function closeAddSurgeryModal() { document.getElementById('surgery-modal').style.display = 'none'; }
+// ==================== 手术/放疗/药物 弹窗控制与提交 ====================
+
+// --- 手术弹窗控制 ---
+function openAddSurgeryModal() {
+  document.getElementById('surg-edit-id').value = '';
+  document.getElementById('surg-modal-title').textContent = '🔪 记录外科手术';
+  document.getElementById('surg-submit-btn').textContent = '保存手术记录';
+  document.getElementById('surg-name').value = '';
+  document.getElementById('surg-date').value = '';
+  document.getElementById('surg-margins').value = 'R0';
+  document.getElementById('surg-lymph').value = '';
+  document.getElementById('surg-hospital').value = '';
+  document.getElementById('surg-pathology').value = '';
+  document.getElementById('surgery-modal').style.display = 'flex';
+}
+
+function openEditSurgeryModal(id) {
+  const item = currentSurgeries.find(s => s.id === id);
+  if (!item) return;
+  document.getElementById('surg-edit-id').value = item.id;
+  document.getElementById('surg-modal-title').textContent = '✏️ 编辑外科手术记录';
+  document.getElementById('surg-submit-btn').textContent = '保存修改';
+  document.getElementById('surg-name').value = item.surgery_name || '';
+  document.getElementById('surg-date').value = item.surgery_date || '';
+  document.getElementById('surg-margins').value = item.margins || 'R0';
+  document.getElementById('surg-lymph').value = item.lymph_nodes || '';
+  document.getElementById('surg-hospital').value = item.hospital || '';
+  document.getElementById('surg-pathology').value = item.pathology_summary || '';
+  document.getElementById('surgery-modal').style.display = 'flex';
+}
+
+function closeAddSurgeryModal() {
+  document.getElementById('surgery-modal').style.display = 'none';
+}
+
 async function submitAddSurgery() {
+  const editId = document.getElementById('surg-edit-id').value;
   const data = {
     surgery_name: document.getElementById('surg-name').value.trim(),
     surgery_date: document.getElementById('surg-date').value.trim(),
@@ -1039,14 +1101,56 @@ async function submitAddSurgery() {
     alert('请填写术式名称和手术日期');
     return;
   }
-  await API.createSurgery(data);
-  closeAddSurgeryModal();
-  await loadTreatmentsList();
+  try {
+    if (editId) {
+      await API.updateSurgery(editId, data);
+    } else {
+      await API.createSurgery(data);
+    }
+    closeAddSurgeryModal();
+    await loadTreatmentsList();
+  } catch (err) {
+    alert(`保存手术记录失败: ${err.message}`);
+  }
 }
 
-function openAddRadioModal() { document.getElementById('radio-modal').style.display = 'flex'; }
-function closeAddRadioModal() { document.getElementById('radio-modal').style.display = 'none'; }
+// --- 放疗弹窗控制 ---
+function openAddRadioModal() {
+  document.getElementById('radio-edit-id').value = '';
+  document.getElementById('radio-modal-title').textContent = '⚡ 记录放射治疗';
+  document.getElementById('radio-submit-btn').textContent = '保存放疗记录';
+  document.getElementById('radio-site').value = '';
+  document.getElementById('radio-tech').value = '';
+  document.getElementById('radio-dose').value = '';
+  document.getElementById('radio-frac').value = '';
+  document.getElementById('radio-start').value = '';
+  document.getElementById('radio-end').value = '';
+  document.getElementById('radio-tox').value = '';
+  document.getElementById('radio-modal').style.display = 'flex';
+}
+
+function openEditRadioModal(id) {
+  const item = currentRadios.find(r => r.id === id);
+  if (!item) return;
+  document.getElementById('radio-edit-id').value = item.id;
+  document.getElementById('radio-modal-title').textContent = '✏️ 编辑放射治疗记录';
+  document.getElementById('radio-submit-btn').textContent = '保存修改';
+  document.getElementById('radio-site').value = item.site || '';
+  document.getElementById('radio-tech').value = item.technique || '';
+  document.getElementById('radio-dose').value = item.total_dose || '';
+  document.getElementById('radio-frac').value = item.fractions || '';
+  document.getElementById('radio-start').value = item.start_date || '';
+  document.getElementById('radio-end').value = item.end_date || '';
+  document.getElementById('radio-tox').value = item.toxicity_notes || '';
+  document.getElementById('radio-modal').style.display = 'flex';
+}
+
+function closeAddRadioModal() {
+  document.getElementById('radio-modal').style.display = 'none';
+}
+
 async function submitAddRadio() {
+  const editId = document.getElementById('radio-edit-id').value;
   const data = {
     site: document.getElementById('radio-site').value.trim(),
     technique: document.getElementById('radio-tech').value.trim(),
@@ -1060,14 +1164,58 @@ async function submitAddRadio() {
     alert('请填写照射靶区和开始日期');
     return;
   }
-  await API.createRadiotherapy(data);
-  closeAddRadioModal();
-  await loadTreatmentsList();
+  try {
+    if (editId) {
+      await API.updateRadiotherapy(editId, data);
+    } else {
+      await API.createRadiotherapy(data);
+    }
+    closeAddRadioModal();
+    await loadTreatmentsList();
+  } catch (err) {
+    alert(`保存放疗记录失败: ${err.message}`);
+  }
 }
 
-function openAddTherapyModal() { document.getElementById('therapy-modal').style.display = 'flex'; }
-function closeAddTherapyModal() { document.getElementById('therapy-modal').style.display = 'none'; }
+// --- 药物治疗弹窗控制 ---
+function openAddTherapyModal() {
+  document.getElementById('ther-edit-id').value = '';
+  document.getElementById('ther-modal-title').textContent = '💊 记录药物治疗 (化疗/靶向/免疫)';
+  document.getElementById('ther-submit-btn').textContent = '保存药物记录';
+  document.getElementById('ther-line').value = '一线治疗';
+  document.getElementById('ther-type').value = '靶向治疗';
+  document.getElementById('ther-regimen').value = '';
+  document.getElementById('ther-cycle').value = '1';
+  if (document.getElementById('ther-drugs')) document.getElementById('ther-drugs').value = '';
+  document.getElementById('ther-start').value = '';
+  document.getElementById('ther-end').value = '';
+  document.getElementById('ther-adverse').value = '';
+  document.getElementById('therapy-modal').style.display = 'flex';
+}
+
+function openEditTherapyModal(id) {
+  const item = currentTherapies.find(t => t.id === id);
+  if (!item) return;
+  document.getElementById('ther-edit-id').value = item.id;
+  document.getElementById('ther-modal-title').textContent = '✏️ 编辑药物治疗记录';
+  document.getElementById('ther-submit-btn').textContent = '保存修改';
+  document.getElementById('ther-line').value = item.treatment_line || '一线治疗';
+  document.getElementById('ther-type').value = item.therapy_type || '靶向治疗';
+  document.getElementById('ther-regimen').value = item.regimen_name || '';
+  document.getElementById('ther-cycle').value = item.cycle_number || 1;
+  if (document.getElementById('ther-drugs')) document.getElementById('ther-drugs').value = item.drugs_detail || '';
+  document.getElementById('ther-start').value = item.start_date || '';
+  document.getElementById('ther-end').value = item.end_date || '';
+  document.getElementById('ther-adverse').value = item.adverse_events || '';
+  document.getElementById('therapy-modal').style.display = 'flex';
+}
+
+function closeAddTherapyModal() {
+  document.getElementById('therapy-modal').style.display = 'none';
+}
+
 async function submitAddTherapy() {
+  const editId = document.getElementById('ther-edit-id').value;
   const data = {
     regimen_name: document.getElementById('ther-regimen').value.trim(),
     treatment_line: document.getElementById('ther-line').value,
@@ -1075,16 +1223,24 @@ async function submitAddTherapy() {
     cycle_number: parseInt(document.getElementById('ther-cycle').value) || 1,
     start_date: document.getElementById('ther-start').value.trim(),
     end_date: document.getElementById('ther-end').value.trim(),
-    drugs_detail: document.getElementById('ther-drugs').value.trim(),
+    drugs_detail: document.getElementById('ther-drugs') ? document.getElementById('ther-drugs').value.trim() : '',
     adverse_events: document.getElementById('ther-adverse').value.trim()
   };
   if (!data.regimen_name || !data.start_date) {
     alert('请填写方案名称和开始日期');
     return;
   }
-  await API.createTherapy(data);
-  closeAddTherapyModal();
-  await loadTreatmentsList();
+  try {
+    if (editId) {
+      await API.updateTherapy(editId, data);
+    } else {
+      await API.createTherapy(data);
+    }
+    closeAddTherapyModal();
+    await loadTreatmentsList();
+  } catch (err) {
+    alert(`保存药物治疗记录失败: ${err.message}`);
+  }
 }
 
 // ==================== 超级管理员运维模块 ====================

@@ -115,6 +115,16 @@ class SurgeryBase(BaseModel):
 class SurgeryCreate(SurgeryBase):
     pass
 
+class SurgeryUpdate(BaseModel):
+    surgery_date: Optional[str] = None
+    surgery_name: Optional[str] = None
+    hospital: Optional[str] = None
+    surgeon: Optional[str] = None
+    margins: Optional[str] = None
+    lymph_nodes: Optional[str] = None
+    pathology_summary: Optional[str] = None
+    complications: Optional[str] = None
+
 class SurgeryOut(SurgeryBase):
     id: int
     user_id: int
@@ -134,6 +144,16 @@ class RadiotherapyBase(BaseModel):
 
 class RadiotherapyCreate(RadiotherapyBase):
     pass
+
+class RadiotherapyUpdate(BaseModel):
+    site: Optional[str] = None
+    technique: Optional[str] = None
+    total_dose: Optional[str] = None
+    fractions: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    hospital: Optional[str] = None
+    toxicity_notes: Optional[str] = None
 
 class RadiotherapyOut(RadiotherapyBase):
     id: int
@@ -155,6 +175,17 @@ class SystemicTherapyBase(BaseModel):
 
 class SystemicTherapyCreate(SystemicTherapyBase):
     pass
+
+class SystemicTherapyUpdate(BaseModel):
+    treatment_line: Optional[str] = None
+    therapy_type: Optional[str] = None
+    regimen_name: Optional[str] = None
+    cycle_number: Optional[int] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    drugs_detail: Optional[str] = None
+    adverse_events: Optional[str] = None
+    notes: Optional[str] = None
 
 class SystemicTherapyOut(SystemicTherapyBase):
     id: int

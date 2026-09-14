@@ -128,6 +128,12 @@ const API = {
       body: JSON.stringify(data)
     });
   },
+  async updateSurgery(id, data) {
+    return await this.request(`/oncology/surgeries/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  },
   async deleteSurgery(id) {
     return await this.request(`/oncology/surgeries/${id}`, { method: 'DELETE' });
   },
@@ -141,6 +147,12 @@ const API = {
       body: JSON.stringify(data)
     });
   },
+  async updateRadiotherapy(id, data) {
+    return await this.request(`/oncology/radiotherapies/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  },
   async deleteRadiotherapy(id) {
     return await this.request(`/oncology/radiotherapies/${id}`, { method: 'DELETE' });
   },
@@ -151,6 +163,12 @@ const API = {
   async createTherapy(data) {
     return await this.request('/oncology/therapies', {
       method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+  async updateTherapy(id, data) {
+    return await this.request(`/oncology/therapies/${id}`, {
+      method: 'PUT',
       body: JSON.stringify(data)
     });
   },

@@ -105,7 +105,7 @@
     <section class="tab-content" id="tab-treatments" style="display:none;">
       <div class="card">
         <div class="card-title">
-          <span>💊 肿瘤专科治疗历程全要素登记 (手术 / 放疗 / 靶向化疗)</span>
+          <span>💊 肿瘤专科治疗历程全要素登记 (手术 / 放疗 / 药物)</span>
         </div>
         <div id="treatments-list-container"></div>
       </div>
@@ -437,12 +437,14 @@
   </div>
 
   <!-- 模态弹窗 4: 新增手术记录 -->
+  <!-- 模态弹窗 4: 手术记录 (新增/编辑) -->
   <div id="surgery-modal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.6); z-index:100; align-items:center; justify-content:center; overflow-y:auto; padding:20px 0;">
     <div class="card" style="width:100%; max-width:560px; margin:auto;">
       <div class="card-title">
-        <span>🔪 记录外科手术</span>
+        <span id="surg-modal-title">🔪 记录外科手术</span>
         <button class="btn btn-secondary btn-sm" onclick="closeAddSurgeryModal()">✕</button>
       </div>
+      <input type="hidden" id="surg-edit-id" value="">
       <div class="form-group">
         <label class="form-label">手术术式名称</label>
         <input type="text" id="surg-name" class="form-input" placeholder="如：胸腔镜右下肺叶切除+淋巴结清扫">
@@ -477,18 +479,19 @@
       </div>
       <div style="display:flex; justify-content:flex-end; gap:8px;">
         <button class="btn btn-secondary" onclick="closeAddSurgeryModal()">取消</button>
-        <button class="btn btn-primary" onclick="submitAddSurgery()">保存手术记录</button>
+        <button class="btn btn-primary" id="surg-submit-btn" onclick="submitAddSurgery()">保存手术记录</button>
       </div>
     </div>
   </div>
 
-  <!-- 模态弹窗 5: 新增放疗记录 -->
+  <!-- 模态弹窗 5: 放疗记录 (新增/编辑) -->
   <div id="radio-modal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.6); z-index:100; align-items:center; justify-content:center;">
     <div class="card" style="width:100%; max-width:560px; margin:auto;">
       <div class="card-title">
-        <span>⚡ 记录放射治疗</span>
+        <span id="radio-modal-title">⚡ 记录放射治疗</span>
         <button class="btn btn-secondary btn-sm" onclick="closeAddRadioModal()">✕</button>
       </div>
+      <input type="hidden" id="radio-edit-id" value="">
       <div class="form-group">
         <label class="form-label">照射部位 / 靶区</label>
         <input type="text" id="radio-site" class="form-input" placeholder="如：纵隔引流区 / 颅脑转移灶">
@@ -523,26 +526,28 @@
       </div>
       <div style="display:flex; justify-content:flex-end; gap:8px;">
         <button class="btn btn-secondary" onclick="closeAddRadioModal()">取消</button>
-        <button class="btn btn-primary" onclick="submitAddRadio()">保存放疗记录</button>
+        <button class="btn btn-primary" id="radio-submit-btn" onclick="submitAddRadio()">保存放疗记录</button>
       </div>
     </div>
   </div>
 
-  <!-- 模态弹窗 6: 新增治疗用药周期 -->
+  <!-- 模态弹窗 6: 药物治疗记录 (新增/编辑) -->
   <div id="therapy-modal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.6); z-index:100; align-items:center; justify-content:center;">
     <div class="card" style="width:100%; max-width:560px; margin:auto;">
       <div class="card-title">
-        <span>💊 登记化疗 / 靶向 / 免疫治疗周期</span>
+        <span id="ther-modal-title">💊 记录药物治疗 (化疗/靶向/免疫)</span>
         <button class="btn btn-secondary btn-sm" onclick="closeAddTherapyModal()">✕</button>
       </div>
+      <input type="hidden" id="ther-edit-id" value="">
       <div class="grid-2">
         <div class="form-group">
           <label class="form-label">治疗阶段/线数</label>
           <select class="form-select" id="ther-line">
-            <option value="术后辅助治疗">术后辅助治疗</option>
-            <option value="术前新辅助">术前新辅助</option>
             <option value="一线治疗" selected>一线治疗</option>
             <option value="二线治疗">二线治疗</option>
+            <option value="后线治疗">后线治疗</option>
+            <option value="术后辅助治疗">术后辅助治疗</option>
+            <option value="术前新辅助">术前新辅助</option>
             <option value="维持治疗">维持治疗</option>
           </select>
         </div>
@@ -554,18 +559,24 @@
             <option value="免疫治疗">免疫治疗</option>
             <option value="化疗联合免疫">化疗联合免疫</option>
             <option value="内分泌治疗">内分泌治疗</option>
+            <option value="双抗 / ADC">双抗 / ADC</option>
+            <option value="其他药物方案">其他药物方案</option>
           </select>
         </div>
       </div>
       <div class="grid-2">
         <div class="form-group">
           <label class="form-label">方案名称</label>
-          <input type="text" id="ther-regimen" class="form-input" placeholder="如：奥希替尼 80mg 或 培美曲塞+卡铂">
+          <input type="text" id="ther-regimen" class="form-input" placeholder="如：奥希替尼 或 培美曲塞+卡铂">
         </div>
         <div class="form-group">
           <label class="form-label">周期轮次</label>
           <input type="number" id="ther-cycle" class="form-input" value="1" min="1">
         </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">具体用药与剂量规格 (选填)</label>
+        <input type="text" id="ther-drugs" class="form-input" placeholder="如：奥希替尼 80mg 口服 qd，或 培美曲塞 800mg + 卡铂 500mg">
       </div>
       <div class="grid-2">
         <div class="form-group">
@@ -573,17 +584,17 @@
           <input type="date" id="ther-start" class="form-input">
         </div>
         <div class="form-group">
-          <label class="form-label">结束日期</label>
+          <label class="form-label">结束日期 (若已完成)</label>
           <input type="date" id="ther-end" class="form-input">
         </div>
       </div>
       <div class="form-group">
         <label class="form-label">不良反应 (CTCAE分级)</label>
-        <input type="text" id="ther-adverse" class="form-input" placeholder="如：白细胞降低I度、恶心I度">
+        <input type="text" id="ther-adverse" class="form-input" placeholder="如：白细胞降低I度、轻度恶心或皮疹">
       </div>
       <div style="display:flex; justify-content:flex-end; gap:8px;">
         <button class="btn btn-secondary" onclick="closeAddTherapyModal()">取消</button>
-        <button class="btn btn-primary" onclick="submitAddTherapy()">保存周期记录</button>
+        <button class="btn btn-primary" id="ther-submit-btn" onclick="submitAddTherapy()">保存药物记录</button>
       </div>
     </div>
   </div>
@@ -703,9 +714,9 @@
   </div>
 
   <!-- 引入逻辑脚本 (加版本号防浏览器强缓存) -->
-  <script src="js/api.js?v=1.8"></script>
-  <script src="js/timeline.js?v=1.8"></script>
-  <script src="js/charts.js?v=1.8"></script>
-  <script src="js/app.js?v=1.8"></script>
+  <script src="js/api.js?v=1.9"></script>
+  <script src="js/timeline.js?v=1.9"></script>
+  <script src="js/charts.js?v=1.9"></script>
+  <script src="js/app.js?v=1.9"></script>
 </body>
 </html>
