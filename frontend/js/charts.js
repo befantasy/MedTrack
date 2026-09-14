@@ -78,6 +78,41 @@ const ChartsModule = {
     }
   },
 
+  processSeriesData(s) {
+    if (!s.data || !s.data.length) return [];
+    return s.data.map((val, idx) => {
+      if (val === null || val === undefined) return val;
+      
+      let isHigh = s.ref_max !== null && val > s.ref_max;
+      let isLow = s.ref_min !== null && val < s.ref_min;
+      
+      let trend = '';
+      let prevVal = null;
+      for (let i = idx - 1; i >= 0; i--) {
+        if (s.data[i] !== null && s.data[i] !== undefined) {
+          prevVal = s.data[i];
+          break;
+        }
+      }
+      if (prevVal !== null) {
+        if (val > prevVal) trend = '↑';
+        if (val < prevVal) trend = '↓';
+      }
+
+      let color = '#0284c7'; // default blue
+      if (isHigh) color = '#ef4444';
+      else if (isLow) color = '#f59e0b';
+
+      return {
+        value: val,
+        isHigh,
+        isLow,
+        trend,
+        itemStyle: { color: color }
+      };
+    });
+  },
+
   renderPillsBar() {
     const bar = document.getElementById('charts-metrics-pills-bar');
     const countBadge = document.getElementById('charts-metrics-count');
@@ -97,37 +132,50 @@ const ChartsModule = {
       countBadge.className = 'badge badge-green';
     }
 
-    const badgeClasses = {
-      'tumor_marker': 'badge-red',
-      'safety_toxicity': 'badge-blue',
-      'chronic': 'badge-green',
-      'other': 'badge-gray'
+    const groups = {
+      'tumor_marker': { name: '🩸 肿瘤标志物', items: [], cls: 'badge-red' },
+      'safety_toxicity': { name: '🛡️ 毒副/安全性', items: [], cls: 'badge-blue' },
+      'chronic': { name: '🩺 慢病/代谢', items: [], cls: 'badge-green' },
+      'other': { name: '🧪 其他通用指标', items: [], cls: 'badge-gray' }
     };
 
-    const categoryNames = {
-      'tumor_marker': '肿瘤标志物',
-      'safety_toxicity': '毒副/安全性',
-      'chronic': '慢病/代谢',
-      'other': '通用指标'
-    };
+    this.availableMetrics.forEach(m => {
+      if (groups[m.category]) {
+        groups[m.category].items.push(m);
+      } else {
+        groups['other'].items.push(m);
+      }
+    });
 
-    bar.innerHTML = this.availableMetrics.map(m => {
-      const cls = badgeClasses[m.category] || 'badge-gray';
-      const catName = categoryNames[m.category] || '指标';
-      const displayName = m.name && m.name !== m.code ? `${m.name} (${m.code})` : m.code;
-      return `
-        <button type="button" 
-          onclick="ChartsModule.focusSingleMetric('${encodeURIComponent(m.code)}', '${encodeURIComponent(m.name || m.code)}')"
-          class="badge ${cls}" 
-          style="cursor:pointer; border:1px solid rgba(0,0,0,0.08); padding:5px 10px; font-size:0.83rem; transition:transform 0.15s, box-shadow 0.15s; display:inline-flex; align-items:center; gap:4px;"
-          title="点击查看 ${displayName} 专属演变时序图 [${catName}]"
-          onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 2px 5px rgba(0,0,0,0.1)'"
-          onmouseout="this.style.transform='none'; this.style.boxShadow='none'">
-          <span>📈 ${escapeHtml(displayName)}</span>
-          ${m.unit ? `<span style="opacity:0.75; font-size:0.75rem;">${escapeHtml(m.unit)}</span>` : ''}
-        </button>
+    let html = '';
+    for (const [key, group] of Object.entries(groups)) {
+      if (group.items.length === 0) continue;
+      
+      const buttonsHtml = group.items.map(m => {
+        const displayName = m.name && m.name !== m.code ? `${m.name} (${m.code})` : m.code;
+        return `
+          <button type="button" 
+            onclick="ChartsModule.focusSingleMetric('${encodeURIComponent(m.code)}', '${encodeURIComponent(m.name || m.code)}')"
+            class="badge ${group.cls}" 
+            style="cursor:pointer; border:1px solid rgba(0,0,0,0.08); padding:5px 10px; font-size:0.83rem; transition:transform 0.15s, box-shadow 0.15s; display:inline-flex; align-items:center; gap:4px;"
+            title="点击查看 ${displayName} 专属演变时序图"
+            onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 2px 5px rgba(0,0,0,0.1)'"
+            onmouseout="this.style.transform='none'; this.style.boxShadow='none'">
+            <span>📈 ${escapeHtml(displayName)}</span>
+            ${m.unit ? `<span style="opacity:0.75; font-size:0.75rem;">${escapeHtml(m.unit)}</span>` : ''}
+          </button>
+        `;
+      }).join('');
+
+      html += `
+        <div style="margin-bottom: 12px; width: 100%;">
+          <div style="font-size:0.82rem; font-weight:600; color:#64748b; margin-bottom:6px;">${group.name}</div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">${buttonsHtml}</div>
+        </div>
       `;
-    }).join('');
+    }
+
+    bar.innerHTML = html;
   },
 
   async focusSingleMetric(encodedCode, encodedName) {
@@ -163,6 +211,7 @@ const ChartsModule = {
 
       const s = data.series[0];
       const isSinglePoint = data.dates.length === 1;
+      const processedData = this.processSeriesData(s);
 
       const markLineOpt = (s.ref_max || s.ref_min) ? {
         silent: true,
@@ -196,8 +245,15 @@ const ChartsModule = {
           formatter: function (params) {
             let res = `<div style="font-weight:600;margin-bottom:4px;">采样日期: ${params[0].axisValue}</div>`;
             params.forEach(p => {
-              const val = p.value !== null && p.value !== undefined ? p.value : '未测定';
-              res += `<div>${p.marker} 测定值: <strong>${val}</strong> ${s.unit || ''}</div>`;
+              const dataObj = p.data;
+              if (dataObj === null || dataObj === undefined) {
+                res += `<div>${p.marker} 测定值: <strong>未测定</strong></div>`;
+              } else {
+                const val = dataObj.value;
+                const trendTag = dataObj.trend ? ` <strong style="color:${dataObj.trend==='↑'?'#ef4444':'#10b981'}">${dataObj.trend}</strong>` : '';
+                const abnTag = dataObj.isHigh ? ' <span style="color:#ef4444;font-size:0.8rem">(高)</span>' : (dataObj.isLow ? ' <span style="color:#f59e0b;font-size:0.8rem">(低)</span>' : '');
+                res += `<div>${p.marker} 测定值: <strong style="color:${dataObj.itemStyle.color}">${val}</strong> ${s.unit || ''}${abnTag}${trendTag}</div>`;
+              }
             });
             if (s.ref_range) {
               res += `<div style="font-size:0.8rem; color:#94a3b8; margin-top:2px;">正常参考区间: ${s.ref_range}</div>`;
@@ -205,7 +261,11 @@ const ChartsModule = {
             return res;
           }
         },
-        grid: { left: '4%', right: '8%', bottom: '5%', top: '65px', containLabel: true },
+        grid: { left: '4%', right: '8%', bottom: '50px', top: '65px', containLabel: true },
+        dataZoom: [
+          { type: 'inside', xAxisIndex: 0, filterMode: 'empty' },
+          { type: 'slider', xAxisIndex: 0, filterMode: 'empty', bottom: 10, height: 20 }
+        ],
         xAxis: {
           type: 'category',
           boundaryGap: isSinglePoint ? ['35%', '35%'] : false,
@@ -237,12 +297,11 @@ const ChartsModule = {
           label: {
             show: true,
             position: 'top',
-            formatter: '{c}',
+            formatter: p => (p.data && p.data.value !== undefined) ? `${p.data.value}${p.data.trend||''}` : '',
             fontWeight: 700,
-            fontSize: 12,
-            color: '#0369a1'
+            fontSize: 12
           },
-          data: s.data,
+          data: processedData,
           markLine: markLineOpt
         }]
       };
@@ -291,9 +350,9 @@ const ChartsModule = {
             position: 'top',
             fontSize: 11,
             fontWeight: 600,
-            formatter: params => (params.value !== null && params.value !== undefined) ? params.value : ''
+            formatter: p => (p.data && p.data.value !== undefined) ? `${p.data.value}${p.data.trend||''}` : ''
           },
-          data: s.data,
+          data: this.processSeriesData(s),
           markLine: s.ref_max ? {
             silent: true,
             symbol: 'none',
@@ -320,14 +379,25 @@ const ChartsModule = {
           formatter: function (params) {
             let res = `<div style="font-weight:600;margin-bottom:4px;">采样日期: ${params[0].axisValue}</div>`;
             params.forEach(p => {
-              const val = p.value !== null && p.value !== undefined ? p.value : '未测定';
-              res += `<div>${p.marker} ${p.seriesName}: <strong>${val}</strong></div>`;
+              const dataObj = p.data;
+              if (dataObj === null || dataObj === undefined) {
+                res += `<div>${p.marker} ${p.seriesName}: <strong>未测定</strong></div>`;
+              } else {
+                const val = dataObj.value;
+                const trendTag = dataObj.trend ? ` <strong style="color:${dataObj.trend==='↑'?'#ef4444':'#10b981'}">${dataObj.trend}</strong>` : '';
+                const abnTag = dataObj.isHigh ? ' <span style="color:#ef4444;font-size:0.8rem">(高)</span>' : (dataObj.isLow ? ' <span style="color:#f59e0b;font-size:0.8rem">(低)</span>' : '');
+                res += `<div>${p.marker} ${p.seriesName}: <strong style="color:${dataObj.itemStyle.color}">${val}</strong>${abnTag}${trendTag}</div>`;
+              }
             });
             return res;
           }
         },
         legend: { top: '30px', type: 'scroll' },
-        grid: { left: '3%', right: '4%', bottom: '3%', top: '75px', containLabel: true },
+        grid: { left: '3%', right: '4%', bottom: '50px', top: '75px', containLabel: true },
+        dataZoom: [
+          { type: 'inside', xAxisIndex: 0, filterMode: 'empty' },
+          { type: 'slider', xAxisIndex: 0, filterMode: 'empty', bottom: 10, height: 20 }
+        ],
         xAxis: {
           type: 'category',
           boundaryGap: isSinglePoint ? ['25%', '25%'] : false,
@@ -384,9 +454,9 @@ const ChartsModule = {
           position: 'top',
           fontSize: 11,
           fontWeight: 600,
-          formatter: params => (params.value !== null && params.value !== undefined) ? params.value : ''
+          formatter: p => (p.data && p.data.value !== undefined) ? `${p.data.value}${p.data.trend||''}` : ''
         },
-        data: s.data
+        data: this.processSeriesData(s)
       }));
 
       const option = {
@@ -397,9 +467,30 @@ const ChartsModule = {
           textStyle: { fontSize: 15, fontWeight: 600 },
           subtextStyle: { fontSize: 11, color: '#64748b' }
         },
-        tooltip: { trigger: 'axis' },
+        tooltip: {
+          trigger: 'axis',
+          formatter: function (params) {
+            let res = `<div style="font-weight:600;margin-bottom:4px;">采样日期: ${params[0].axisValue}</div>`;
+            params.forEach(p => {
+              const dataObj = p.data;
+              if (dataObj === null || dataObj === undefined) {
+                res += `<div>${p.marker} ${p.seriesName}: <strong>未测定</strong></div>`;
+              } else {
+                const val = dataObj.value;
+                const trendTag = dataObj.trend ? ` <strong style="color:${dataObj.trend==='↑'?'#ef4444':'#10b981'}">${dataObj.trend}</strong>` : '';
+                const abnTag = dataObj.isHigh ? ' <span style="color:#ef4444;font-size:0.8rem">(高)</span>' : (dataObj.isLow ? ' <span style="color:#f59e0b;font-size:0.8rem">(低)</span>' : '');
+                res += `<div>${p.marker} ${p.seriesName}: <strong style="color:${dataObj.itemStyle.color}">${val}</strong>${abnTag}${trendTag}</div>`;
+              }
+            });
+            return res;
+          }
+        },
         legend: { top: '30px', type: 'scroll' },
-        grid: { left: '3%', right: '4%', bottom: '3%', top: '75px', containLabel: true },
+        grid: { left: '3%', right: '4%', bottom: '50px', top: '75px', containLabel: true },
+        dataZoom: [
+          { type: 'inside', xAxisIndex: 0, filterMode: 'empty' },
+          { type: 'slider', xAxisIndex: 0, filterMode: 'empty', bottom: 10, height: 20 }
+        ],
         xAxis: {
           type: 'category',
           boundaryGap: isSinglePoint ? ['25%', '25%'] : false,
@@ -456,9 +547,9 @@ const ChartsModule = {
           position: 'top',
           fontSize: 11,
           fontWeight: 600,
-          formatter: params => (params.value !== null && params.value !== undefined) ? params.value : ''
+          formatter: p => (p.data && p.data.value !== undefined) ? `${p.data.value}${p.data.trend||''}` : ''
         },
-        data: s.data
+        data: this.processSeriesData(s)
       }));
 
       const option = {
@@ -469,9 +560,30 @@ const ChartsModule = {
           textStyle: { fontSize: 15, fontWeight: 600 },
           subtextStyle: { fontSize: 11, color: '#64748b' }
         },
-        tooltip: { trigger: 'axis' },
+        tooltip: {
+          trigger: 'axis',
+          formatter: function (params) {
+            let res = `<div style="font-weight:600;margin-bottom:4px;">采样日期: ${params[0].axisValue}</div>`;
+            params.forEach(p => {
+              const dataObj = p.data;
+              if (dataObj === null || dataObj === undefined) {
+                res += `<div>${p.marker} ${p.seriesName}: <strong>未测定</strong></div>`;
+              } else {
+                const val = dataObj.value;
+                const trendTag = dataObj.trend ? ` <strong style="color:${dataObj.trend==='↑'?'#ef4444':'#10b981'}">${dataObj.trend}</strong>` : '';
+                const abnTag = dataObj.isHigh ? ' <span style="color:#ef4444;font-size:0.8rem">(高)</span>' : (dataObj.isLow ? ' <span style="color:#f59e0b;font-size:0.8rem">(低)</span>' : '');
+                res += `<div>${p.marker} ${p.seriesName}: <strong style="color:${dataObj.itemStyle.color}">${val}</strong>${abnTag}${trendTag}</div>`;
+              }
+            });
+            return res;
+          }
+        },
         legend: { top: '30px', type: 'scroll' },
-        grid: { left: '3%', right: '4%', bottom: '3%', top: '75px', containLabel: true },
+        grid: { left: '3%', right: '4%', bottom: '50px', top: '75px', containLabel: true },
+        dataZoom: [
+          { type: 'inside', xAxisIndex: 0, filterMode: 'empty' },
+          { type: 'slider', xAxisIndex: 0, filterMode: 'empty', bottom: 10, height: 20 }
+        ],
         xAxis: {
           type: 'category',
           boundaryGap: isSinglePoint ? ['25%', '25%'] : false,
