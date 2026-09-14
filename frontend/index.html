@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MedTrack | 肿瘤全过程治疗与慢病智能管理平台</title>
-  <link rel="stylesheet" href="css/style.css?v=1.6">
+  <link rel="stylesheet" href="css/style.css?v=1.7">
   <!-- ECharts 5 科学图表库 -->
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 </head>
@@ -264,19 +264,24 @@
         </div>
         <div class="form-group">
           <label class="form-label">病理分型</label>
-          <input type="text" list="pathology-presets" id="prof-type" class="form-input" placeholder="选择或输入病理分型">
-          <datalist id="pathology-presets">
-            <option value="浸润性腺癌">
-            <option value="鳞状细胞癌">
-            <option value="小细胞神经内分泌癌">
-            <option value="大细胞神经内分泌癌">
-            <option value="浸润性导管癌">
-            <option value="胃肠间质瘤 (GIST)">
-            <option value="透明细胞肾细胞癌">
-            <option value="尿路上皮癌">
-            <option value="低分化腺癌">
-            <option value="黏液腺癌">
-          </datalist>
+          <select id="prof-type-select" class="form-select" onchange="handlePathologyTypeChange()">
+            <option value="">-- 选择或输入病理分型 --</option>
+            <option value="浸润性腺癌">浸润性腺癌</option>
+            <option value="微浸润腺癌">微浸润腺癌 (MIA)</option>
+            <option value="鳞状细胞癌">鳞状细胞癌</option>
+            <option value="小细胞神经内分泌癌">小细胞神经内分泌癌</option>
+            <option value="大细胞神经内分泌癌">大细胞神经内分泌癌</option>
+            <option value="浸润性导管癌">浸润性导管癌 (乳腺)</option>
+            <option value="浸润性小叶癌">浸润性小叶癌 (乳腺)</option>
+            <option value="胃肠间质瘤">胃肠间质瘤 (GIST)</option>
+            <option value="透明细胞肾细胞癌">透明细胞肾细胞癌</option>
+            <option value="尿路上皮癌">尿路上皮癌</option>
+            <option value="低分化腺癌">低分化腺癌</option>
+            <option value="黏液腺癌">黏液腺癌</option>
+            <option value="印戒细胞癌">印戒细胞癌</option>
+            <option value="__other__">其他分型 (手动填写)...</option>
+          </select>
+          <input type="text" id="prof-type-custom" class="form-input" style="display:none; margin-top:6px;" placeholder="请输入具体病理分型，如：原位腺癌/高级别浆液性癌">
         </div>
         <div class="form-group">
           <label class="form-label">确诊时间 (初确诊日期)</label>
@@ -329,26 +334,28 @@
           <span style="font-weight:700; color:#0f172a;">🧬 驱动基因与分子靶点</span>
           <span style="font-size:0.78rem; color:#64748b;">选择或输入基因及检测结果</span>
         </label>
-        <div style="display:flex; gap:8px; margin-bottom:10px;">
-          <input list="gene-presets" id="prof-gene-name" class="form-input" style="flex:1;" placeholder="靶点/基因名 (如: EGFR)">
-          <datalist id="gene-presets">
-            <option value="EGFR">
-            <option value="ALK">
-            <option value="ROS1">
-            <option value="KRAS">
-            <option value="BRAF">
-            <option value="HER2">
-            <option value="MET">
-            <option value="RET">
-            <option value="PD-L1">
-            <option value="BRCA1/2">
-            <option value="MSI/dMMR">
-            <option value="NTRK">
-            <option value="ER/PR">
-            <option value="PIK3CA">
-            <option value="TMB">
-          </datalist>
-          <input type="text" id="prof-gene-val" class="form-input" style="flex:1.4;" placeholder="检测结果 (如: 19-del 或 阳性)" onkeydown="if(event.key==='Enter'){event.preventDefault(); addMolecularMarker();}">
+        <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
+          <select id="prof-gene-select" class="form-select" style="flex:1; min-width:180px;" onchange="handleGeneSelectChange()">
+            <option value="">-- 选择基因/靶点 --</option>
+            <option value="EGFR">EGFR</option>
+            <option value="ALK">ALK</option>
+            <option value="ROS1">ROS1</option>
+            <option value="KRAS">KRAS</option>
+            <option value="BRAF">BRAF</option>
+            <option value="HER2">HER2 (ERBB2)</option>
+            <option value="MET">MET</option>
+            <option value="RET">RET</option>
+            <option value="PD-L1">PD-L1</option>
+            <option value="BRCA1/2">BRCA1/2</option>
+            <option value="MSI/dMMR">MSI / dMMR</option>
+            <option value="NTRK">NTRK</option>
+            <option value="ER/PR">ER / PR</option>
+            <option value="PIK3CA">PIK3CA</option>
+            <option value="TMB">TMB</option>
+            <option value="__custom__">其他基因 (手动填写)...</option>
+          </select>
+          <input type="text" id="prof-gene-custom" class="form-input" style="display:none; flex:1; min-width:180px;" placeholder="输入基因/靶点名">
+          <input type="text" id="prof-gene-val" class="form-input" style="flex:1.4; min-width:180px;" placeholder="检测结果 (如: 19-del 或 阳性)" onkeydown="if(event.key==='Enter'){event.preventDefault(); addMolecularMarker();}">
           <button type="button" class="btn btn-secondary btn-sm" onclick="addMolecularMarker()" style="white-space:nowrap;">＋ 添加靶点</button>
         </div>
         <div id="prof-markers-container" style="display:flex; flex-wrap:wrap; gap:8px; min-height:34px; padding:6px; background:white; border:1px dashed var(--border-color); border-radius:var(--radius-sm); align-items:center;">
@@ -682,9 +689,9 @@
   </div>
 
   <!-- 引入逻辑脚本 (加版本号防浏览器强缓存) -->
-  <script src="js/api.js?v=1.6"></script>
-  <script src="js/timeline.js?v=1.6"></script>
-  <script src="js/charts.js?v=1.6"></script>
-  <script src="js/app.js?v=1.6"></script>
+  <script src="js/api.js?v=1.7"></script>
+  <script src="js/timeline.js?v=1.7"></script>
+  <script src="js/charts.js?v=1.7"></script>
+  <script src="js/app.js?v=1.7"></script>
 </body>
 </html>

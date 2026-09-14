@@ -618,6 +618,33 @@ function handlePrimarySiteChange() {
     custom.focus();
   } else {
     custom.style.display = 'none';
+    custom.value = '';
+  }
+}
+
+function handlePathologyTypeChange() {
+  const sel = document.getElementById('prof-type-select');
+  const custom = document.getElementById('prof-type-custom');
+  if (!sel || !custom) return;
+  if (sel.value === '__other__') {
+    custom.style.display = 'block';
+    custom.focus();
+  } else {
+    custom.style.display = 'none';
+    custom.value = '';
+  }
+}
+
+function handleGeneSelectChange() {
+  const sel = document.getElementById('prof-gene-select');
+  const custom = document.getElementById('prof-gene-custom');
+  if (!sel || !custom) return;
+  if (sel.value === '__custom__') {
+    custom.style.display = 'block';
+    custom.focus();
+  } else {
+    custom.style.display = 'none';
+    custom.value = '';
   }
 }
 
@@ -676,14 +703,23 @@ function renderEditingComorbidities() {
 }
 
 function addMolecularMarker() {
-  const geneInput = document.getElementById('prof-gene-name');
+  const geneSel = document.getElementById('prof-gene-select');
+  const geneCustom = document.getElementById('prof-gene-custom');
   const valInput = document.getElementById('prof-gene-val');
-  if (!geneInput || !valInput) return;
-  const gene = (geneInput.value || '').trim();
+  if (!geneSel || !valInput) return;
+
+  let gene = '';
+  if (geneSel.value === '__custom__') {
+    gene = (geneCustom.value || '').trim();
+  } else {
+    gene = (geneSel.value || '').trim();
+  }
+
   const val = (valInput.value || '').trim();
   if (!gene) {
-    alert('请输入或选择基因/分子靶点名称 (如: EGFR)');
-    geneInput.focus();
+    alert('请选择或输入基因/分子靶点名称 (如: EGFR)');
+    if (geneSel.value === '__custom__') geneCustom.focus();
+    else geneSel.focus();
     return;
   }
   if (!val) {
@@ -692,10 +728,14 @@ function addMolecularMarker() {
     return;
   }
   editingMarkers[gene] = val;
-  geneInput.value = '';
+  geneSel.value = '';
+  if (geneCustom) {
+    geneCustom.value = '';
+    geneCustom.style.display = 'none';
+  }
   valInput.value = '';
   renderEditingMarkers();
-  geneInput.focus();
+  geneSel.focus();
 }
 
 function removeMolecularMarker(gene) {
@@ -728,8 +768,9 @@ function openProfileModal() {
 
   document.getElementById('prof-name').value = currentProfile.patient_name || '';
 
-  // 原发部位
-  const site = currentProfile.primary_site || '';
+  // 1. 原发部位 (过滤历史默认占位符 '未录入')
+  let site = (currentProfile.primary_site || '').trim();
+  if (site === '未录入') site = '';
   const siteSelect = document.getElementById('prof-site-select');
   const siteCustom = document.getElementById('prof-site-custom');
   let matchedSite = false;
@@ -752,14 +793,37 @@ function openProfileModal() {
     }
   }
 
-  // 病理分型
-  document.getElementById('prof-type').value = currentProfile.pathology_type || '';
+  // 2. 病理分型 (过滤历史默认占位符 '未录入')
+  let pathology = (currentProfile.pathology_type || '').trim();
+  if (pathology === '未录入') pathology = '';
+  const typeSelect = document.getElementById('prof-type-select');
+  const typeCustom = document.getElementById('prof-type-custom');
+  let matchedType = false;
+  if (typeSelect) {
+    for (let opt of typeSelect.options) {
+      if (opt.value && opt.value !== '__other__' && pathology === opt.value) {
+        typeSelect.value = opt.value;
+        matchedType = true;
+        break;
+      }
+    }
+    if (!matchedType && pathology) {
+      typeSelect.value = '__other__';
+      typeCustom.value = pathology;
+      typeCustom.style.display = 'block';
+    } else {
+      if (!matchedType) typeSelect.value = '';
+      typeCustom.value = '';
+      typeCustom.style.display = 'none';
+    }
+  }
 
-  // 确诊时间
+  // 3. 确诊时间
   document.getElementById('prof-date').value = currentProfile.initial_diagnosis_date || '';
 
-  // 初诊分期 (智能拆解主要分期与 TNM 备注)
-  const staging = currentProfile.initial_staging || '';
+  // 4. 初诊分期 (智能拆解主要分期与 TNM 备注，过滤历史 '未录入')
+  let staging = (currentProfile.initial_staging || '').trim();
+  if (staging === '未录入') staging = '';
   const stagingSelect = document.getElementById('prof-staging-select');
   const stagingDetail = document.getElementById('prof-staging-detail');
   if (stagingSelect && stagingDetail) {
@@ -781,8 +845,9 @@ function openProfileModal() {
     }
   }
 
-  // 当前阶段
-  const curStaging = currentProfile.current_staging || '';
+  // 5. 当前阶段 (平滑映射历史值 '初诊/治疗中' -> '初诊评估中')
+  let curStaging = (currentProfile.current_staging || '').trim();
+  if (curStaging === '初诊/治疗中') curStaging = '初诊评估中';
   const curStagingSelect = document.getElementById('prof-cur-staging');
   if (curStagingSelect) {
     let matchedCur = false;
@@ -801,7 +866,13 @@ function openProfileModal() {
     }
   }
 
-  // 驱动基因与分子靶点 (自动解析 JSON 并转为可视化卡点)
+  // 6. 驱动基因与分子靶点
+  const geneSel = document.getElementById('prof-gene-select');
+  const geneCustom = document.getElementById('prof-gene-custom');
+  const geneVal = document.getElementById('prof-gene-val');
+  if (geneSel) geneSel.value = '';
+  if (geneCustom) { geneCustom.value = ''; geneCustom.style.display = 'none'; }
+  if (geneVal) geneVal.value = '';
   try {
     editingMarkers = JSON.parse(currentProfile.molecular_markers || '{}');
     if (typeof editingMarkers !== 'object' || Array.isArray(editingMarkers)) editingMarkers = {};
@@ -810,7 +881,7 @@ function openProfileModal() {
   }
   renderEditingMarkers();
 
-  // 合并慢性病 (自动解析 JSON 并转为可视化药丸)
+  // 7. 合并慢性病
   try {
     editingComorbidities = JSON.parse(currentProfile.chronic_comorbidities || '[]');
     if (!Array.isArray(editingComorbidities)) editingComorbidities = [];
@@ -830,6 +901,10 @@ async function saveProfile() {
   const siteCustom = document.getElementById('prof-site-custom').value.trim();
   const primarySite = siteSel === '__other__' ? siteCustom : siteSel;
 
+  const typeSel = document.getElementById('prof-type-select').value;
+  const typeCustom = document.getElementById('prof-type-custom').value.trim();
+  const pathologyType = typeSel === '__other__' ? typeCustom : typeSel;
+
   const stageSel = document.getElementById('prof-staging-select').value;
   const stageDetail = document.getElementById('prof-staging-detail').value.trim();
   let initialStaging = '';
@@ -842,7 +917,7 @@ async function saveProfile() {
   const updated = {
     patient_name: document.getElementById('prof-name').value.trim(),
     primary_site: primarySite,
-    pathology_type: document.getElementById('prof-type').value.trim(),
+    pathology_type: pathologyType,
     initial_diagnosis_date: document.getElementById('prof-date').value.trim(),
     initial_staging: initialStaging,
     current_staging: document.getElementById('prof-cur-staging').value.trim(),

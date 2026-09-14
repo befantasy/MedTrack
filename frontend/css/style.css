@@ -3,6 +3,7 @@
    =================================================== */
 
 :root {
+  color-scheme: light;      /* 强制锁定为浅色渲染上下文，阻止 OS 夜晚模式对浏览器表单和下拉菜单进行系统反色 */
   --primary: #0284c7;       /* 医疗智慧蓝 */
   --primary-hover: #0369a1;
   --primary-light: #e0f2fe;
@@ -309,14 +310,21 @@ body {
   margin-bottom: 6px;
 }
 
-.form-input, .form-select, .form-textarea {
+.form-input, .form-select, .form-textarea, select, input, textarea {
+  color-scheme: light !important;
   width: 100%;
   padding: 8px 12px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   font-size: 0.92rem;
-  background-color: white;
+  background-color: #ffffff !important;
+  color: var(--text-main) !important;
   transition: border-color 0.2s;
+}
+
+select option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
 }
 
 .form-input:focus, .form-select:focus, .form-textarea:focus {

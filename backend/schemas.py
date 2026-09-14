@@ -47,8 +47,8 @@ class AdminUserCreate(BaseModel):
     password: str
     is_admin: bool = False
     patient_name: Optional[str] = ""
-    primary_site: Optional[str] = "未录入"
-    pathology_type: Optional[str] = "未录入"
+    primary_site: Optional[str] = ""
+    pathology_type: Optional[str] = ""
 
 class AdminPasswordReset(BaseModel):
     new_password: str

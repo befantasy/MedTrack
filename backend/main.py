@@ -91,8 +91,8 @@ def init_system_defaults():
                 profile = models.CancerProfile(
                     user_id=new_admin.id,
                     patient_name="系统管理员",
-                    primary_site="未录入",
-                    pathology_type="未录入",
+                    primary_site="",
+                    pathology_type="",
                     current_staging="管理归档"
                 )
                 db.add(profile)

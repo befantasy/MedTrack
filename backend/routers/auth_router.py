@@ -47,9 +47,9 @@ def register(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
     profile = models.CancerProfile(
         user_id=new_user.id,
         patient_name=user_in.username,
-        primary_site="未录入",
-        pathology_type="未录入",
-        current_staging="初诊/治疗中"
+        primary_site="",
+        pathology_type="",
+        current_staging="初诊评估中"
     )
     db.add(profile)
     db.commit()

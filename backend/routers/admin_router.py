@@ -146,9 +146,9 @@ def admin_create_user(
     profile = models.CancerProfile(
         user_id=user.id,
         patient_name=data.patient_name or data.username,
-        primary_site=data.primary_site or "未录入",
-        pathology_type=data.pathology_type or "未录入",
-        current_staging="初诊/治疗中"
+        primary_site=data.primary_site or "",
+        pathology_type=data.pathology_type or "",
+        current_staging="初诊评估中"
     )
     db.add(profile)
     db.commit()
