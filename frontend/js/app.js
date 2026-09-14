@@ -307,6 +307,7 @@ async function onFileSelected(event) {
               <div style="width:20px; height:20px; border:3px solid #e0f2fe; border-top-color:#0284c7; border-radius:50%; animation:spin 1s linear infinite;"></div>
               <span>AI分析中... 已完成 ${statusData.completed} / ${statusData.total} 张</span>
             </div>
+            <style>@keyframes spin { 0% { transform:rotate(0deg); } 100% { transform:rotate(360deg); } }</style>
           `;
         } else if (statusData.status === 'completed' || statusData.status === 'error') {
           clearInterval(pollInterval);
