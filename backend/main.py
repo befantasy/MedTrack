@@ -128,6 +128,56 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+class CloudflareCacheControlMiddleware:
+    """
+    智能自适应缓存控制中间件 (完美适配 Cloudflare CDN 与现代浏览器):
+    无需在 Cloudflare 控制台进行繁琐的页面/缓存规则配置，源站通过标准 HTTP 响应头主动约束 CDN 行为:
+    1. /api/ 动态数据: 强制 no-store, private，杜绝 CDN 边缘缓存与多用户数据串号风险;
+    2. /uploads/ 医疗单据: 强制 private, no-store，杜绝患者私密化验单/切片影像被公开缓存在 CDN 节点;
+    3. HTML 入口页面: 强制 no-cache, no-store，确保每次部署新版本用户端秒级获取最新页面结构;
+    4. 静态资源 (JS/CSS/图标): 设置 no-cache, must-revalidate，既支持极速 304 协商缓存，又确保部署后立即生效。
+    """
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+
+        path = scope.get("path", "")
+
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                # 过滤已有的旧缓存控制响应头
+                headers = [h for h in headers if h[0].lower() not in (b"cache-control", b"pragma", b"expires")]
+
+                if path.startswith("/api/"):
+                    headers.append((b"cache-control", b"no-store, no-cache, must-revalidate, private"))
+                    headers.append((b"pragma", b"no-cache"))
+                    headers.append((b"expires", b"0"))
+                elif path.startswith("/uploads/"):
+                    headers.append((b"cache-control", b"private, no-cache, no-store, must-revalidate"))
+                    headers.append((b"pragma", b"no-cache"))
+                    headers.append((b"expires", b"0"))
+                elif path == "/" or path.endswith(".html") or ("." not in path.split("/")[-1]):
+                    headers.append((b"cache-control", b"no-cache, no-store, must-revalidate"))
+                    headers.append((b"pragma", b"no-cache"))
+                    headers.append((b"expires", b"0"))
+                else:
+                    headers.append((b"cache-control", b"no-cache, must-revalidate"))
+
+                # 基础安全加固响应头
+                headers.append((b"x-content-type-options", b"nosniff"))
+                headers.append((b"x-frame-options", b"SAMEORIGIN"))
+
+                message["headers"] = headers
+            await send(message)
+
+        return await self.app(scope, receive, send_wrapper)
+
+app.add_middleware(CloudflareCacheControlMiddleware)
+
 # 挂载上传文件静态目录
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
