@@ -1450,6 +1450,43 @@ const AdminModule = {
     input.type = input.type === 'password' ? 'text' : 'password';
   },
 
+  async testAIConnection() {
+    const keyInput = document.getElementById('admin-ai-key');
+    const baseUrlInput = document.getElementById('admin-ai-base-url');
+    const modelInput = document.getElementById('admin-ai-model');
+
+    const payload = {
+      api_key: keyInput ? keyInput.value.trim() : '',
+      base_url: baseUrlInput ? baseUrlInput.value.trim() : '',
+      model: modelInput ? modelInput.value.trim() : ''
+    };
+
+    const statusBadge = document.getElementById('admin-ai-status-badge');
+    if (statusBadge) {
+      statusBadge.innerHTML = `<span class="badge" style="background:#e0f2fe; color:#0369a1;">⚡ 正在测试连通性...</span>`;
+    }
+
+    try {
+      const res = await API.testAISettings(payload);
+      if (res.success) {
+        if (statusBadge) {
+          statusBadge.innerHTML = `<span class="badge" style="background:#dcfce7; color:#15803d; font-weight:bold;">✅ 连通成功 (${res.latency_ms}ms)</span>`;
+        }
+        alert(`✅ 连通性测试成功！\n\n• 目标端点: ${res.endpoint}\n• 模型响应: 正常\n• 响应耗时: ${res.latency_ms} ms\n\n大模型识别服务与中转站已成功打通，您可以点击“保存配置”正式启用！`);
+      } else {
+        if (statusBadge) {
+          statusBadge.innerHTML = `<span class="badge" style="background:#fee2e2; color:#b91c1c; font-weight:bold;">❌ 连通失败</span>`;
+        }
+        alert(`❌ 连通测试未通过:\n\n• 请求端点: ${res.endpoint}\n• 错误信息: ${res.message}\n\n💡 提示: 如果是 sub2api / OneAPI 等中转站，Base URL 建议填写为: https://api.medai.link/v1`);
+      }
+    } catch (err) {
+      if (statusBadge) {
+        statusBadge.innerHTML = `<span class="badge" style="background:#fee2e2; color:#b91c1c; font-weight:bold;">❌ 连通失败</span>`;
+      }
+      alert(`测试请求异常: ${err.message}`);
+    }
+  },
+
   async toggleRegistration() {
     try {
       const current = this.currentSettings ? this.currentSettings.allow_registration : true;

@@ -347,6 +347,13 @@ const API = {
       method: 'PUT',
       body: JSON.stringify(data)
     });
+  },
+
+  async testAISettings(data) {
+    return await this.request('/admin/settings/ai/test', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
   }
 };
 

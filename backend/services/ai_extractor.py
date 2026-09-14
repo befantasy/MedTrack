@@ -5,6 +5,38 @@ from typing import Dict, Any, Optional, Tuple
 import httpx
 from config import settings
 
+def build_chat_endpoint(base_url: str) -> str:
+    """智能清洗并构建 OpenAI 兼容的 /chat/completions 完整请求端点"""
+    url = (base_url or "").strip().rstrip('/')
+    if not url:
+        return "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+
+    # 1. 用户已经填写了完整路径
+    if url.endswith("/chat/completions"):
+        return url
+
+    # 2. 官方 Google Gemini OpenAI-compatible 接口
+    if "generativelanguage.googleapis.com" in url:
+        if url.endswith("/openai"):
+            return f"{url}/chat/completions"
+        elif url.endswith("/v1beta"):
+            return f"{url}/openai/chat/completions"
+        elif not ("/openai" in url):
+            return f"{url}/v1beta/openai/chat/completions"
+        return f"{url}/chat/completions"
+
+    # 3. 常见以 /v1, /v1beta, /api/v1 结尾的地址 (sub2api, OneAPI, NewAPI, OpenAI)
+    if url.endswith("/v1") or url.endswith("/v1beta") or url.endswith("/api/v1"):
+        return f"{url}/chat/completions"
+
+    # 4. 如果 URL 中已经包含 /v1/ 或 /v1beta/ (例如某些特定网关路径)
+    if "/v1/" in url or "/v1beta/" in url:
+        return f"{url}/chat/completions"
+
+    # 5. 用户仅填写了中转站根域名 (如 https://api.medai.link 或 https://api.openai.com)
+    # 自动容错补全 /v1/chat/completions
+    return f"{url}/v1/chat/completions"
+
 class AIExtractorService:
     """多模态视觉大模型智能医疗单据结构化解析器"""
 
@@ -35,6 +67,53 @@ class AIExtractorService:
         base_url = base_url or self.default_base_url
         model = model or self.default_model
         return api_key, base_url.rstrip('/'), model
+
+    async def test_connection(self, api_key: str, base_url: str, model: str) -> Dict[str, Any]:
+        """轻量级连通性测试"""
+        import time
+        endpoint = build_chat_endpoint(base_url)
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": model,
+            "messages": [{"role": "user", "content": "ping"}],
+            "max_tokens": 10
+        }
+        start_time = time.time()
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                res = await client.post(endpoint, json=payload, headers=headers)
+                latency = int((time.time() - start_time) * 1000)
+                if res.status_code == 200:
+                    return {
+                        "success": True,
+                        "endpoint": endpoint,
+                        "latency_ms": latency,
+                        "message": f"连通成功！模型 [{model}] 响应正常 (耗时 {latency}ms)"
+                    }
+                else:
+                    detail = res.text[:300]
+                    hint = ""
+                    if res.status_code == 404:
+                        hint = " (404 错误通常是路径缺少 /v1，系统现已自动兼容补全，请核对中转站域名是否正确)"
+                    elif res.status_code == 401:
+                        hint = " (401 错误表示 API Key 密钥错误或中转站令牌无权限)"
+                    elif res.status_code == 400:
+                        hint = f" (400 错误通常是模型名称 [{model}] 在中转站不存在或不支持)"
+                    return {
+                        "success": False,
+                        "endpoint": endpoint,
+                        "status_code": res.status_code,
+                        "message": f"HTTP {res.status_code}{hint}: {detail}"
+                    }
+        except Exception as e:
+            return {
+                "success": False,
+                "endpoint": endpoint,
+                "message": f"网络连接异常: {str(e)}"
+            }
 
     async def analyze_document(self, file_bytes: bytes, mime_type: str, doc_type: str, db: Optional[Any] = None) -> Dict[str, Any]:
         """
@@ -79,7 +158,7 @@ class AIExtractorService:
             }
         ]
 
-        endpoint = f"{base_url}/chat/completions"
+        endpoint = build_chat_endpoint(base_url)
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
@@ -94,6 +173,12 @@ class AIExtractorService:
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
                 response = await client.post(endpoint, json=payload, headers=headers)
+                
+                # 兼容性容错：若中转站对 response_format 返回 400 不支持，自动移除后重试
+                if response.status_code == 400 and ("response_format" in response.text or "format" in response.text):
+                    payload.pop("response_format", None)
+                    response = await client.post(endpoint, json=payload, headers=headers)
+
                 response.raise_for_status()
                 data = response.json()
                 content = data["choices"][0]["message"]["content"]
@@ -105,7 +190,7 @@ class AIExtractorService:
             # 大模型调用出错时的保护：附带真实错误信息并降级返回模拟数据，保证页面不崩
             mock = self._get_mock_data(doc_type)
             mock["_is_mock"] = True
-            mock["_error"] = f"大模型接口请求异常: {str(e)}"
+            mock["_error"] = f"大模型请求异常 [{endpoint}]: {str(e)}"
             mock["_mock_notice"] = f"大模型解析失败 ({str(e)})，已自动回退到模拟数据。"
             return mock
 

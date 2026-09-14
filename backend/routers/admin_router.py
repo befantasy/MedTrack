@@ -135,6 +135,25 @@ def update_ai_settings(
         set_setting(db, "ai_model", data.model.strip(), "AI 大模型 Model")
     return {"message": "AI 大模型识别引擎配置已成功保存并立即生效"}
 
+@router.post("/settings/ai/test")
+async def test_ai_settings(
+    data: schemas.AISettingUpdate,
+    admin: models.User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """在线测试 AI 大模型配置连通性"""
+    from services.ai_extractor import ai_extractor
+    saved_key, saved_url, saved_model = ai_extractor.get_config(db)
+    
+    test_key = (data.api_key or "").strip() or saved_key
+    test_url = (data.base_url or "").strip() or saved_url
+    test_model = (data.model or "").strip() or saved_model
+
+    if not test_key or test_key == "your_api_key_here":
+        raise HTTPException(status_code=400, detail="请先填入或保存有效的 API Key 密钥后再进行测试")
+
+    return await ai_extractor.test_connection(test_key, test_url, test_model)
+
 # ==================== 2. 用户与租户管理 ====================
 @router.get("/users", response_model=List[schemas.UserAdminDetail])
 def list_users(
