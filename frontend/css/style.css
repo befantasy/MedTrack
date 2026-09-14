@@ -422,3 +422,52 @@ body {
     left: -20px;
   }
 }
+
+/* 药丸胶囊选择器与交互式标签 (Tag Pills & Badges) */
+.pill-select-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border-color);
+  background: white;
+  color: var(--text-main);
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.pill-select-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-light);
+}
+.pill-select-btn.active {
+  background: var(--secondary);
+  border-color: var(--secondary);
+  color: white;
+}
+.pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  transition: transform 0.1s;
+}
+.pill-badge-remove {
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1;
+  opacity: 0.7;
+  transition: opacity 0.15s, color 0.15s;
+  margin-left: 2px;
+}
+.pill-badge-remove:hover {
+  opacity: 1;
+  color: var(--danger);
+}

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MedTrack | 肿瘤全过程治疗与慢病智能管理平台</title>
-  <link rel="stylesheet" href="css/style.css?v=1.5">
+  <link rel="stylesheet" href="css/style.css?v=1.6">
   <!-- ECharts 5 科学图表库 -->
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 </head>
@@ -230,50 +230,159 @@
 
   <!-- 模态弹窗 2: 编辑肿瘤档案 -->
   <div id="profile-modal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.6); z-index:100; align-items:center; justify-content:center; overflow-y:auto; padding:20px 0;">
-    <div class="card" style="width:100%; max-width:640px; margin:auto; box-shadow:var(--shadow-lg);">
-      <div class="card-title">
+    <div class="card" style="width:100%; max-width:680px; margin:auto; box-shadow:var(--shadow-lg); max-height:90vh; overflow-y:auto;">
+      <div class="card-title" style="position:sticky; top:0; background:white; z-index:1; padding-bottom:8px; margin-bottom:12px; border-bottom:1px solid var(--border-color);">
         <span>✏️ 编辑肿瘤与慢病基准档案</span>
         <button class="btn btn-secondary btn-sm" onclick="closeProfileModal()">✕</button>
       </div>
       <div class="grid-2">
         <div class="form-group">
           <label class="form-label">患者姓名/昵称</label>
-          <input type="text" id="prof-name" class="form-input">
+          <input type="text" id="prof-name" class="form-input" placeholder="输入患者姓名或称呼">
         </div>
         <div class="form-group">
-          <label class="form-label">原发部位 (如：肺、胃、结直肠)</label>
-          <input type="text" id="prof-site" class="form-input">
+          <label class="form-label">原发部位</label>
+          <select id="prof-site-select" class="form-select" onchange="handlePrimarySiteChange()">
+            <option value="">-- 请选择原发部位 --</option>
+            <option value="肺">肺 (肺癌)</option>
+            <option value="结直肠">结直肠 (结肠/直肠癌)</option>
+            <option value="胃">胃 (胃癌/胃食管结合部)</option>
+            <option value="乳腺">乳腺 (乳腺癌)</option>
+            <option value="肝胆">肝胆 (肝癌/胆管癌)</option>
+            <option value="食管">食管 (食管癌)</option>
+            <option value="胰腺">胰腺 (胰腺癌)</option>
+            <option value="甲状腺">甲状腺 (甲状腺癌)</option>
+            <option value="前列腺">前列腺 (前列腺癌)</option>
+            <option value="妇科肿瘤">妇科 (宫颈/卵巢/子宫内膜)</option>
+            <option value="泌尿系统">泌尿 (肾/膀胱/输尿管)</option>
+            <option value="血液淋巴">血液淋巴 (淋巴瘤/白血病/骨髓瘤)</option>
+            <option value="头颈肿瘤">头颈 (鼻咽/喉/口腔)</option>
+            <option value="软组织与骨">软组织/骨肉瘤</option>
+            <option value="__other__">其他部位 (手动填写)...</option>
+          </select>
+          <input type="text" id="prof-site-custom" class="form-input" style="display:none; margin-top:6px;" placeholder="请输入具体原发部位">
         </div>
         <div class="form-group">
-          <label class="form-label">病理分型 (如：浸润性腺癌)</label>
-          <input type="text" id="prof-type" class="form-input">
+          <label class="form-label">病理分型</label>
+          <input type="text" list="pathology-presets" id="prof-type" class="form-input" placeholder="选择或输入病理分型">
+          <datalist id="pathology-presets">
+            <option value="浸润性腺癌">
+            <option value="鳞状细胞癌">
+            <option value="小细胞神经内分泌癌">
+            <option value="大细胞神经内分泌癌">
+            <option value="浸润性导管癌">
+            <option value="胃肠间质瘤 (GIST)">
+            <option value="透明细胞肾细胞癌">
+            <option value="尿路上皮癌">
+            <option value="低分化腺癌">
+            <option value="黏液腺癌">
+          </datalist>
         </div>
         <div class="form-group">
-          <label class="form-label">确诊时间 (YYYY-MM-DD)</label>
+          <label class="form-label">确诊时间 (初确诊日期)</label>
           <input type="date" id="prof-date" class="form-input">
         </div>
         <div class="form-group">
-          <label class="form-label">初诊分期 (如：cT2N2M0 IIIA期)</label>
-          <input type="text" id="prof-staging" class="form-input">
+          <label class="form-label">初诊分期</label>
+          <div style="display:flex; gap:8px;">
+            <select id="prof-staging-select" class="form-select" style="flex:1;">
+              <option value="">-- 选择分期 --</option>
+              <option value="0期">0期 (原位癌)</option>
+              <option value="I期">I期 (早期)</option>
+              <option value="IA期">IA期</option>
+              <option value="IB期">IB期</option>
+              <option value="II期">II期 (中期)</option>
+              <option value="IIA期">IIA期</option>
+              <option value="IIB期">IIB期</option>
+              <option value="III期">III期 (局部晚期)</option>
+              <option value="IIIA期">IIIA期</option>
+              <option value="IIIB期">IIIB期</option>
+              <option value="IIIC期">IIIC期</option>
+              <option value="IV期">IV期 (晚期/转移)</option>
+              <option value="IVA期">IVA期</option>
+              <option value="IVB期">IVB期</option>
+              <option value="未明确/评估中">未明确/评估中</option>
+            </select>
+            <input type="text" id="prof-staging-detail" class="form-input" style="flex:1.2;" placeholder="补充TNM如: cT2N2M0">
+          </div>
         </div>
         <div class="form-group">
-          <label class="form-label">当前阶段 (如：维持治疗/辅助治疗)</label>
-          <input type="text" id="prof-cur-staging" class="form-input">
+          <label class="form-label">当前阶段</label>
+          <select id="prof-cur-staging" class="form-select">
+            <option value="">-- 请选择当前阶段 --</option>
+            <option value="初诊评估中">初诊评估中</option>
+            <option value="术前新辅助治疗">术前新辅助治疗</option>
+            <option value="术后辅助治疗">术后辅助治疗</option>
+            <option value="维持治疗阶段">维持治疗阶段</option>
+            <option value="定期随访观察">定期随访观察</option>
+            <option value="晚期一线治疗">晚期一线治疗</option>
+            <option value="晚期后线治疗">晚期后线治疗</option>
+            <option value="复发进展调整">复发进展调整</option>
+            <option value="舒缓支持治疗">舒缓支持治疗</option>
+          </select>
         </div>
       </div>
-      <div class="form-group">
-        <label class="form-label">驱动基因与分子靶点 (JSON 格式)</label>
-        <textarea id="prof-markers" class="form-textarea" rows="2" placeholder='{"EGFR": "19-del", "PD-L1": "TPS 60%"}'></textarea>
+
+      <!-- 驱动基因与分子靶点可视化编辑 -->
+      <div class="form-group" style="background:#f8fafc; border:1px solid var(--border-color); border-radius:var(--radius-sm); padding:12px; margin-top:8px;">
+        <label class="form-label" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <span style="font-weight:700; color:#0f172a;">🧬 驱动基因与分子靶点</span>
+          <span style="font-size:0.78rem; color:#64748b;">选择或输入基因及检测结果</span>
+        </label>
+        <div style="display:flex; gap:8px; margin-bottom:10px;">
+          <input list="gene-presets" id="prof-gene-name" class="form-input" style="flex:1;" placeholder="靶点/基因名 (如: EGFR)">
+          <datalist id="gene-presets">
+            <option value="EGFR">
+            <option value="ALK">
+            <option value="ROS1">
+            <option value="KRAS">
+            <option value="BRAF">
+            <option value="HER2">
+            <option value="MET">
+            <option value="RET">
+            <option value="PD-L1">
+            <option value="BRCA1/2">
+            <option value="MSI/dMMR">
+            <option value="NTRK">
+            <option value="ER/PR">
+            <option value="PIK3CA">
+            <option value="TMB">
+          </datalist>
+          <input type="text" id="prof-gene-val" class="form-input" style="flex:1.4;" placeholder="检测结果 (如: 19-del 或 阳性)" onkeydown="if(event.key==='Enter'){event.preventDefault(); addMolecularMarker();}">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="addMolecularMarker()" style="white-space:nowrap;">＋ 添加靶点</button>
+        </div>
+        <div id="prof-markers-container" style="display:flex; flex-wrap:wrap; gap:8px; min-height:34px; padding:6px; background:white; border:1px dashed var(--border-color); border-radius:var(--radius-sm); align-items:center;">
+          <!-- 动态渲染已添加靶点 -->
+        </div>
       </div>
-      <div class="form-group">
-        <label class="form-label">合并慢性病 (JSON 数组)</label>
-        <textarea id="prof-comorbidities" class="form-textarea" rows="2" placeholder='["原发性高血压", "2型糖尿病"]'></textarea>
+
+      <!-- 合并慢性病可视化编辑 -->
+      <div class="form-group" style="background:#f8fafc; border:1px solid var(--border-color); border-radius:var(--radius-sm); padding:12px; margin-top:12px;">
+        <label class="form-label" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <span style="font-weight:700; color:#0f172a;">🩺 合并慢性病史</span>
+          <span style="font-size:0.78rem; color:#64748b;">点击快捷标签勾选，或手动添加</span>
+        </label>
+        
+        <!-- 快捷药丸按钮列表 -->
+        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;" id="comorb-preset-pills">
+          <!-- 快捷药丸按钮 -->
+        </div>
+
+        <div style="display:flex; gap:8px; margin-bottom:10px;">
+          <input type="text" id="prof-custom-comorbid" class="form-input" placeholder="输入其他慢性病 (如: 痛风、桥本甲状腺炎)" onkeydown="if(event.key==='Enter'){event.preventDefault(); addCustomComorbid();}">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="addCustomComorbid()" style="white-space:nowrap;">＋ 添加</button>
+        </div>
+
+        <div id="prof-comorb-container" style="display:flex; flex-wrap:wrap; gap:8px; min-height:34px; padding:6px; background:white; border:1px dashed var(--border-color); border-radius:var(--radius-sm); align-items:center;">
+          <!-- 动态渲染已选慢病胶囊 -->
+        </div>
       </div>
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px;">
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; padding-top:12px; border-top:1px solid var(--border-color);">
         <button type="button" class="btn btn-secondary btn-sm" onclick="closeProfileModal(); openChangePasswordModal();">🔑 修改登录密码</button>
         <div style="display:flex; gap:8px;">
-          <button class="btn btn-secondary" onclick="closeProfileModal()">取消</button>
-          <button class="btn btn-primary" onclick="saveProfile()">保存档案</button>
+          <button type="button" class="btn btn-secondary" onclick="closeProfileModal()">取消</button>
+          <button type="button" class="btn btn-primary" onclick="saveProfile()">保存档案</button>
         </div>
       </div>
     </div>
@@ -573,9 +682,9 @@
   </div>
 
   <!-- 引入逻辑脚本 (加版本号防浏览器强缓存) -->
-  <script src="js/api.js?v=1.5"></script>
-  <script src="js/timeline.js?v=1.5"></script>
-  <script src="js/charts.js?v=1.5"></script>
-  <script src="js/app.js?v=1.5"></script>
+  <script src="js/api.js?v=1.6"></script>
+  <script src="js/timeline.js?v=1.6"></script>
+  <script src="js/charts.js?v=1.6"></script>
+  <script src="js/app.js?v=1.6"></script>
 </body>
 </html>

@@ -600,39 +600,261 @@ function renderConsultationReport(rep, container) {
   `;
 }
 
+// ==================== 肿瘤与慢病基准档案编辑交互 ====================
+let editingMarkers = {};
+let editingComorbidities = [];
+
+const COMMON_COMORBIDITIES_PRESETS = [
+  '高血压', '2型糖尿病', '冠心病', '高脂血症',
+  '乙肝/脂肪肝', '慢性胃炎/消化道溃疡', '慢性肾脏病', '骨质疏松'
+];
+
+function handlePrimarySiteChange() {
+  const sel = document.getElementById('prof-site-select');
+  const custom = document.getElementById('prof-site-custom');
+  if (!sel || !custom) return;
+  if (sel.value === '__other__') {
+    custom.style.display = 'block';
+    custom.focus();
+  } else {
+    custom.style.display = 'none';
+  }
+}
+
+function renderComorbidPresetPills() {
+  const container = document.getElementById('comorb-preset-pills');
+  if (!container) return;
+  container.innerHTML = COMMON_COMORBIDITIES_PRESETS.map(name => {
+    const isSelected = editingComorbidities.includes(name);
+    return `<button type="button" class="pill-select-btn ${isSelected ? 'active' : ''}" onclick="toggleComorbidPreset('${escapeHtml(name)}')">
+      ${isSelected ? '✓ ' : '＋ '}${escapeHtml(name)}
+    </button>`;
+  }).join('');
+}
+
+function toggleComorbidPreset(name) {
+  const idx = editingComorbidities.indexOf(name);
+  if (idx >= 0) {
+    editingComorbidities.splice(idx, 1);
+  } else {
+    editingComorbidities.push(name);
+  }
+  renderEditingComorbidities();
+}
+
+function addCustomComorbid() {
+  const input = document.getElementById('prof-custom-comorbid');
+  if (!input) return;
+  const val = (input.value || '').trim();
+  if (!val) return;
+  if (!editingComorbidities.includes(val)) {
+    editingComorbidities.push(val);
+  }
+  input.value = '';
+  renderEditingComorbidities();
+}
+
+function removeComorbid(name) {
+  editingComorbidities = editingComorbidities.filter(c => c !== name);
+  renderEditingComorbidities();
+}
+
+function renderEditingComorbidities() {
+  renderComorbidPresetPills();
+  const container = document.getElementById('prof-comorb-container');
+  if (!container) return;
+  if (editingComorbidities.length === 0) {
+    container.innerHTML = '<span style="color:#94a3b8; font-size:0.82rem; line-height:30px;">暂未添加合并慢病（可从上方直接点击预置疾病，或输入添加）</span>';
+    return;
+  }
+  container.innerHTML = editingComorbidities.map(c => `
+    <span class="pill-badge" style="background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0;">
+      <span>🩺 ${escapeHtml(c)}</span>
+      <span class="pill-badge-remove" title="删除此慢病" onclick="removeComorbid('${escapeHtml(c)}')">✕</span>
+    </span>
+  `).join('');
+}
+
+function addMolecularMarker() {
+  const geneInput = document.getElementById('prof-gene-name');
+  const valInput = document.getElementById('prof-gene-val');
+  if (!geneInput || !valInput) return;
+  const gene = (geneInput.value || '').trim();
+  const val = (valInput.value || '').trim();
+  if (!gene) {
+    alert('请输入或选择基因/分子靶点名称 (如: EGFR)');
+    geneInput.focus();
+    return;
+  }
+  if (!val) {
+    alert('请输入该靶点的检测结果或突变分型 (如: 19-del 或 阳性)');
+    valInput.focus();
+    return;
+  }
+  editingMarkers[gene] = val;
+  geneInput.value = '';
+  valInput.value = '';
+  renderEditingMarkers();
+  geneInput.focus();
+}
+
+function removeMolecularMarker(gene) {
+  delete editingMarkers[gene];
+  renderEditingMarkers();
+}
+
+function renderEditingMarkers() {
+  const container = document.getElementById('prof-markers-container');
+  if (!container) return;
+  const entries = Object.entries(editingMarkers);
+  if (entries.length === 0) {
+    container.innerHTML = '<span style="color:#94a3b8; font-size:0.82rem; line-height:30px;">暂未添加分子靶点（可从上方选择靶点并填写检测结果）</span>';
+    return;
+  }
+  container.innerHTML = entries.map(([gene, val]) => `
+    <span class="pill-badge" style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;">
+      <strong>🧬 ${escapeHtml(gene)}:</strong>
+      <span>${escapeHtml(val)}</span>
+      <span class="pill-badge-remove" title="删除此靶点" onclick="removeMolecularMarker('${escapeHtml(gene)}')">✕</span>
+    </span>
+  `).join('');
+}
+
 // 模态弹窗控制辅助函数
 function openProfileModal() {
   const m = document.getElementById('profile-modal');
   if (!m) return;
   m.style.display = 'flex';
+
   document.getElementById('prof-name').value = currentProfile.patient_name || '';
-  document.getElementById('prof-site').value = currentProfile.primary_site || '';
+
+  // 原发部位
+  const site = currentProfile.primary_site || '';
+  const siteSelect = document.getElementById('prof-site-select');
+  const siteCustom = document.getElementById('prof-site-custom');
+  let matchedSite = false;
+  if (siteSelect) {
+    for (let opt of siteSelect.options) {
+      if (opt.value && opt.value !== '__other__' && (site === opt.value || site.startsWith(opt.value))) {
+        siteSelect.value = opt.value;
+        matchedSite = true;
+        break;
+      }
+    }
+    if (!matchedSite && site) {
+      siteSelect.value = '__other__';
+      siteCustom.value = site;
+      siteCustom.style.display = 'block';
+    } else {
+      if (!matchedSite) siteSelect.value = '';
+      siteCustom.value = '';
+      siteCustom.style.display = 'none';
+    }
+  }
+
+  // 病理分型
   document.getElementById('prof-type').value = currentProfile.pathology_type || '';
+
+  // 确诊时间
   document.getElementById('prof-date').value = currentProfile.initial_diagnosis_date || '';
-  document.getElementById('prof-staging').value = currentProfile.initial_staging || '';
-  document.getElementById('prof-cur-staging').value = currentProfile.current_staging || '';
-  document.getElementById('prof-markers').value = currentProfile.molecular_markers || '{}';
-  document.getElementById('prof-comorbidities').value = currentProfile.chronic_comorbidities || '[]';
+
+  // 初诊分期 (智能拆解主要分期与 TNM 备注)
+  const staging = currentProfile.initial_staging || '';
+  const stagingSelect = document.getElementById('prof-staging-select');
+  const stagingDetail = document.getElementById('prof-staging-detail');
+  if (stagingSelect && stagingDetail) {
+    let matchedStaging = '';
+    const stageOptions = Array.from(stagingSelect.options).map(o => o.value).filter(v => v);
+    stageOptions.sort((a, b) => b.length - a.length);
+    for (let optVal of stageOptions) {
+      if (staging.includes(optVal)) {
+        matchedStaging = optVal;
+        break;
+      }
+    }
+    if (matchedStaging) {
+      stagingSelect.value = matchedStaging;
+      stagingDetail.value = staging.replace(matchedStaging, '').trim();
+    } else {
+      stagingSelect.value = '';
+      stagingDetail.value = staging;
+    }
+  }
+
+  // 当前阶段
+  const curStaging = currentProfile.current_staging || '';
+  const curStagingSelect = document.getElementById('prof-cur-staging');
+  if (curStagingSelect) {
+    let matchedCur = false;
+    for (let opt of curStagingSelect.options) {
+      if (opt.value === curStaging) {
+        curStagingSelect.value = curStaging;
+        matchedCur = true;
+        break;
+      }
+    }
+    if (!matchedCur && curStaging) {
+      const newOpt = new Option(curStaging, curStaging, true, true);
+      curStagingSelect.add(newOpt);
+    } else if (!matchedCur) {
+      curStagingSelect.value = '';
+    }
+  }
+
+  // 驱动基因与分子靶点 (自动解析 JSON 并转为可视化卡点)
+  try {
+    editingMarkers = JSON.parse(currentProfile.molecular_markers || '{}');
+    if (typeof editingMarkers !== 'object' || Array.isArray(editingMarkers)) editingMarkers = {};
+  } catch {
+    editingMarkers = {};
+  }
+  renderEditingMarkers();
+
+  // 合并慢性病 (自动解析 JSON 并转为可视化药丸)
+  try {
+    editingComorbidities = JSON.parse(currentProfile.chronic_comorbidities || '[]');
+    if (!Array.isArray(editingComorbidities)) editingComorbidities = [];
+  } catch {
+    editingComorbidities = [];
+  }
+  renderEditingComorbidities();
 }
+
 function closeProfileModal() {
-  document.getElementById('profile-modal').style.display = 'none';
+  const m = document.getElementById('profile-modal');
+  if (m) m.style.display = 'none';
 }
+
 async function saveProfile() {
+  const siteSel = document.getElementById('prof-site-select').value;
+  const siteCustom = document.getElementById('prof-site-custom').value.trim();
+  const primarySite = siteSel === '__other__' ? siteCustom : siteSel;
+
+  const stageSel = document.getElementById('prof-staging-select').value;
+  const stageDetail = document.getElementById('prof-staging-detail').value.trim();
+  let initialStaging = '';
+  if (stageSel && stageDetail) {
+    initialStaging = `${stageDetail} ${stageSel}`.trim();
+  } else {
+    initialStaging = stageSel || stageDetail;
+  }
+
   const updated = {
     patient_name: document.getElementById('prof-name').value.trim(),
-    primary_site: document.getElementById('prof-site').value.trim(),
+    primary_site: primarySite,
     pathology_type: document.getElementById('prof-type').value.trim(),
     initial_diagnosis_date: document.getElementById('prof-date').value.trim(),
-    initial_staging: document.getElementById('prof-staging').value.trim(),
+    initial_staging: initialStaging,
     current_staging: document.getElementById('prof-cur-staging').value.trim(),
-    molecular_markers: document.getElementById('prof-markers').value.trim(),
-    chronic_comorbidities: document.getElementById('prof-comorbidities').value.trim()
+    molecular_markers: JSON.stringify(editingMarkers),
+    chronic_comorbidities: JSON.stringify(editingComorbidities)
   };
+
   try {
     currentProfile = await API.updateProfile(updated);
     renderProfileHeader();
     closeProfileModal();
-    alert('档案信息已更新！');
+    alert('基准档案已成功保存！');
   } catch (err) {
     alert(`保存失败: ${err.message}`);
   }
