@@ -73,6 +73,15 @@ def login(user_in: schemas.UserLogin, db: Session = Depends(get_db)):
             headers={"WWW-Authenticate": "Bearer"},
         )
     
+    # 动态管理员提权校验：如果用户名匹配 ADMIN_USERNAME (默认 admin) 或系统只有此1个用户，确保赋予超级管理员身份
+    admin_name = settings.ADMIN_USERNAME or "admin"
+    total_users = db.query(models.User).count()
+    if (user.username.lower() == admin_name.lower() or total_users == 1) and not user.is_admin:
+        user.is_admin = True
+        user.is_active = True
+        db.commit()
+        db.refresh(user)
+
     access_token = create_access_token(data={"sub": user.username})
     return {
         "access_token": access_token,
@@ -86,6 +95,14 @@ def get_me(
     db: Session = Depends(get_db)
 ):
     """获取当前登录用户的账户与完整肿瘤基准档案"""
+    admin_name = settings.ADMIN_USERNAME or "admin"
+    total_users = db.query(models.User).count()
+    if (current_user.username.lower() == admin_name.lower() or total_users == 1) and not current_user.is_admin:
+        current_user.is_admin = True
+        current_user.is_active = True
+        db.commit()
+        db.refresh(current_user)
+
     profile = db.query(models.CancerProfile).filter(models.CancerProfile.user_id == current_user.id).first()
     return {
         "user": {

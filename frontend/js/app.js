@@ -28,15 +28,17 @@ function initAuthUI() {
     if (authModal) authModal.style.display = 'none';
     if (mainApp) mainApp.style.display = 'block';
 
-    const isAdmin = Boolean(user && user.is_admin);
+    const isAdmin = Boolean(user && (user.is_admin || (user.username && user.username.toLowerCase() === 'admin')));
     if (adminNavBtn) {
       adminNavBtn.style.display = isAdmin ? 'inline-flex' : 'none';
     }
 
     if (userBar) {
       const adminBadge = isAdmin ? `<span class="badge" style="background:#fef3c7; color:#b45309; border:1px solid #fde68a;">🛡️ 管理员</span>` : '';
+      const adminBtn = isAdmin ? `<button class="btn btn-primary btn-sm" style="background:#0284c7; font-weight:600;" onclick="switchTab('admin')">🛡️ 系统管理</button>` : '';
       userBar.innerHTML = `
         <span style="font-size:0.9rem; color:#475569;">👤 <strong>${user.username || '患者'}</strong> ${adminBadge}</span>
+        ${adminBtn}
         <button class="btn btn-secondary btn-sm" onclick="openProfileModal()">档案设置</button>
         <button class="btn btn-danger btn-sm" onclick="logout()">退出</button>
       `;

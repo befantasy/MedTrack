@@ -17,20 +17,64 @@ from routers import (
     admin_router
 )
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from auth import hash_password
 
-# 自动创建全部数据库表结构
+# 自动无损增量迁移数据库字段 (兼容已有持久化卷)
+def auto_migrate_db():
+    try:
+        with engine.connect() as conn:
+            # 1. 自动为 users 表补充 is_admin 与 is_active 字段
+            try:
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;"))
+            except Exception as e:
+                print(f"Users table migration note: {e}")
+
+            # 2. 自动补充 system_settings 表
+            try:
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS system_settings (
+                        key VARCHAR(64) PRIMARY KEY,
+                        value TEXT NOT NULL,
+                        description VARCHAR(256) DEFAULT '',
+                        updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    );
+                """))
+            except Exception as e:
+                print(f"System settings table migration note: {e}")
+            conn.commit()
+    except Exception as e:
+        print(f"Auto-migration db note: {e}")
+
+auto_migrate_db()
+
+# 自动创建全部新数据库表结构
 Base.metadata.create_all(bind=engine)
 
-# 自动播种初始超级管理员账号
+# 自动播种并校准超级管理员账号
 def init_system_defaults():
     try:
         with Session(engine) as db:
-            admin_user = db.query(models.User).filter(models.User.is_admin == True).first()
-            if not admin_user and settings.ADMIN_USERNAME:
-                hashed = hash_password(settings.ADMIN_PASSWORD)
+            # 1. 确保全局注册开关设置存在
+            reg_setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "allow_registration").first()
+            if not reg_setting:
+                db.add(models.SystemSetting(key="allow_registration", value="true", description="允许新用户公开自主注册"))
+                db.commit()
+
+            # 2. 确保目标管理员账号具有 is_admin=True
+            target_admin_name = settings.ADMIN_USERNAME or "admin"
+            existing_target = db.query(models.User).filter(models.User.username == target_admin_name).first()
+
+            if existing_target:
+                if not existing_target.is_admin or not existing_target.is_active:
+                    existing_target.is_admin = True
+                    existing_target.is_active = True
+                    db.commit()
+            else:
+                hashed = hash_password(settings.ADMIN_PASSWORD or "admin123456")
                 new_admin = models.User(
-                    username=settings.ADMIN_USERNAME,
+                    username=target_admin_name,
                     password_hash=hashed,
                     is_admin=True,
                     is_active=True
@@ -48,6 +92,15 @@ def init_system_defaults():
                 )
                 db.add(profile)
                 db.commit()
+
+            # 3. 兜底保护：若系统中没有任何账号是管理员，自动提拔最早注册的账号为管理员
+            any_admin = db.query(models.User).filter(models.User.is_admin == True).first()
+            if not any_admin:
+                first_u = db.query(models.User).order_by(models.User.id.asc()).first()
+                if first_u:
+                    first_u.is_admin = True
+                    first_u.is_active = True
+                    db.commit()
     except Exception as e:
         print(f"Warning: init_system_defaults failed: {e}")
 
