@@ -20,6 +20,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  // 绑定拖拽上传单据事件
+  const dropzone = document.getElementById('upload-dropzone');
+  if (dropzone) {
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.style.borderColor = '#0284c7';
+        dropzone.style.background = '#f0f9ff';
+      });
+    });
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.style.borderColor = '#cbd5e1';
+        dropzone.style.background = '#fafafa';
+      });
+    });
+    dropzone.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      if (dt && dt.files && dt.files.length > 0) {
+        onFileSelected(dt.files[0]);
+      }
+    });
+  }
+
   if (API.getToken()) {
     await initApp();
   }
@@ -233,7 +260,13 @@ async function switchTab(tabId) {
 let lastParsedDoc = null;
 
 async function onFileSelected(event) {
-  const file = event.target.files[0];
+  let file = null;
+  if (event && event.target && event.target.files) {
+    file = event.target.files[0];
+    event.target.value = ''; // 允许重复上传相同文件名触发 change 事件
+  } else if (event instanceof File) {
+    file = event;
+  }
   if (!file) return;
 
   const docType = document.getElementById('upload-doc-type').value;
@@ -266,6 +299,28 @@ function renderParsedPreview(res) {
 
   const docType = res.doc_type;
   const data = res.parsed_data || {};
+
+  let bannerHtml = '';
+  if (data._is_mock) {
+    bannerHtml = `
+      <div style="background:#fffbeb; border:1px solid #fde68a; border-left:4px solid #f59e0b; padding:12px 16px; border-radius:8px; margin-bottom:14px; color:#92400e;">
+        <div style="font-weight:700; font-size:0.95rem; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+          <span>⚠️ 当前处于演示模式 (系统预置示例数据)</span>
+        </div>
+        <div style="font-size:0.86rem; line-height:1.5;">
+          ${data._error ? `<div style="color:#b91c1c; font-weight:600; margin-bottom:4px;">❌ 接口异常: ${escapeHtml(data._error)}</div>` : ''}
+          系统未检测到有效的大模型 API 密钥（<code>AI_API_KEY</code>），当前为您展示的是系统内置的标准样例模板（无论上传何种单据均呈现此模板，并非被系统缓存）。<br>
+          <strong>如需开启真实拍照识图：</strong> 请管理员登录后在 <strong>【🛡️ 系统管理】</strong> 直接填入 API Key（即时生效），或在 VPS 的 <code>.env</code> 中配置 <code>AI_API_KEY</code>。
+        </div>
+      </div>
+    `;
+  } else {
+    bannerHtml = `
+      <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-left:4px solid #22c55e; padding:10px 14px; border-radius:8px; margin-bottom:14px; color:#166534; font-size:0.86rem; display:flex; justify-content:space-between; align-items:center;">
+        <span>✨ <strong>多模态 AI 智能提取成功：</strong> 单据已由 <code>${escapeHtml(data._model_used || '视觉大模型')}</code> 深度解析</span>
+      </div>
+    `;
+  }
 
   let contentHtml = '';
 
@@ -346,6 +401,7 @@ function renderParsedPreview(res) {
 
   box.innerHTML = `
     <div class="card" style="border:1px solid #0284c7; background:#ffffff;">
+      ${bannerHtml}
       <div class="card-title" style="color:#0284c7;">
         <span>📋 AI 结构化识别预览结果</span>
         <button class="btn btn-primary" onclick="confirmSaveParsedDoc()">💾 确认无误，存入病历档案</button>
@@ -1296,8 +1352,9 @@ const AdminModule = {
       if (elLabs) elLabs.textContent = stats.total_labs_imaging;
       if (elStorage) elStorage.textContent = `${stats.storage_usage_mb} MB`;
 
-      // 2. 加载系统设置（注册开关）
+      // 2. 加载系统设置（注册开关与大模型识别引擎）
       await this.loadSettings();
+      await this.loadAISettings();
 
       // 3. 加载全量用户列表
       await this.loadUsers();
@@ -1321,6 +1378,76 @@ const AdminModule = {
     } catch (err) {
       console.error('获取系统设置失败:', err);
     }
+  },
+
+  async loadAISettings() {
+    try {
+      const data = await API.getAISettings();
+      const statusBadge = document.getElementById('admin-ai-status-badge');
+      const keyInput = document.getElementById('admin-ai-key');
+      const keyHint = document.getElementById('admin-ai-key-hint');
+      const baseUrlInput = document.getElementById('admin-ai-base-url');
+      const modelInput = document.getElementById('admin-ai-model');
+
+      if (statusBadge) {
+        if (data.configured) {
+          statusBadge.innerHTML = `<span class="badge" style="background:#dcfce7; color:#15803d; font-weight:bold;">✅ 真实 AI 模式就绪</span>`;
+        } else {
+          statusBadge.innerHTML = `<span class="badge" style="background:#ffedd5; color:#c2410c; font-weight:bold;">⚠️ 模拟演示模式 (未配Key)</span>`;
+        }
+      }
+
+      if (keyInput) {
+        keyInput.value = '';
+        keyInput.placeholder = data.configured ? `已配置 (${data.masked_key})，留空保持不变` : '填入大模型 API Key (如 AIzaSy... / sk-...)';
+      }
+      if (keyHint) {
+        if (data.configured) {
+          keyHint.innerHTML = `<span style="color:#16a34a;">✅ 当前有效密钥: <code>${escapeHtml(data.masked_key)}</code> (${data.is_env_source ? '来自环境变量' : '来自后台配置'})</span>`;
+        } else {
+          keyHint.innerHTML = `<span style="color:#ea580c;">⚠️ 尚未配置有效密钥，上传单据将展示示例模拟数据</span>`;
+        }
+      }
+      if (baseUrlInput && data.base_url) {
+        baseUrlInput.value = data.base_url;
+      }
+      if (modelInput && data.model) {
+        modelInput.value = data.model;
+      }
+    } catch (err) {
+      console.error('获取 AI 配置失败:', err);
+    }
+  },
+
+  async saveAISettings() {
+    try {
+      const keyInput = document.getElementById('admin-ai-key');
+      const baseUrlInput = document.getElementById('admin-ai-base-url');
+      const modelInput = document.getElementById('admin-ai-model');
+
+      const payload = {};
+      if (keyInput && keyInput.value.trim()) {
+        payload.api_key = keyInput.value.trim();
+      }
+      if (baseUrlInput && baseUrlInput.value.trim()) {
+        payload.base_url = baseUrlInput.value.trim();
+      }
+      if (modelInput && modelInput.value.trim()) {
+        payload.model = modelInput.value.trim();
+      }
+
+      const res = await API.updateAISettings(payload);
+      await this.loadAISettings();
+      alert(`✅ ${res.message || 'AI 大模型识图引擎配置保存成功！'}\n\n即时生效，现在前往【单据智能识别】上传化验单即可体验真实多模态 AI 解析。`);
+    } catch (err) {
+      alert('保存 AI 配置失败: ' + err.message);
+    }
+  },
+
+  toggleAiKeyVisibility() {
+    const input = document.getElementById('admin-ai-key');
+    if (!input) return;
+    input.type = input.type === 'password' ? 'text' : 'password';
   },
 
   async toggleRegistration() {

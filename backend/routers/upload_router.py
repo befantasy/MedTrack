@@ -36,9 +36,9 @@ async def upload_and_parse_document(
 
     raw_file_url = f"/uploads/{unique_filename}"
 
-    # 调用 AI 视觉抽取引擎
+    # 调用 AI 视觉抽取引擎 (支持优先读取系统配置表中的大模型密钥)
     mime_type = file.content_type or "image/jpeg"
-    extracted_data = await ai_extractor.analyze_document(file_bytes, mime_type, doc_type)
+    extracted_data = await ai_extractor.analyze_document(file_bytes, mime_type, doc_type, db=db)
 
     return {
         "success": True,

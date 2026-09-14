@@ -67,6 +67,18 @@ class SystemSettingOut(BaseModel):
 class SystemSettingUpdate(BaseModel):
     value: str
 
+class AISettingOut(BaseModel):
+    configured: bool
+    masked_key: str
+    base_url: str
+    model: str
+    is_env_source: bool
+
+class AISettingUpdate(BaseModel):
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
+    model: Optional[str] = None
+
 class AdminStatsOut(BaseModel):
     total_users: int
     active_users: int

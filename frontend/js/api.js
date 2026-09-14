@@ -335,6 +335,18 @@ const API = {
 
   async getUserDossier(userId) {
     return await this.request(`/admin/users/${userId}/dossier`);
+  },
+
+  // ==================== AI 大模型识别配置 ====================
+  async getAISettings() {
+    return await this.request('/admin/settings/ai');
+  },
+
+  async updateAISettings(data) {
+    return await this.request('/admin/settings/ai', {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
   }
 };
 

@@ -91,6 +91,50 @@ def toggle_registration(
     set_setting(db, "allow_registration", val, "允许新用户公开自主注册")
     return {"message": "注册开关已更新", "allow_registration": val == "true"}
 
+@router.get("/settings/ai", response_model=schemas.AISettingOut)
+def get_ai_settings(
+    admin: models.User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """获取 AI 大模型识别引擎配置（密钥脱敏显示）"""
+    db_key = get_setting(db, "ai_api_key", "")
+    key = db_key or settings.AI_API_KEY
+    masked = ""
+    if key and key != "your_api_key_here":
+        if len(key) > 8:
+            masked = key[:4] + "••••••••" + key[-4:]
+        else:
+            masked = "••••••••"
+
+    db_base_url = get_setting(db, "ai_base_url", "")
+    base_url = db_base_url or settings.AI_BASE_URL
+
+    db_model = get_setting(db, "ai_model", "")
+    model = db_model or settings.AI_MODEL
+
+    return {
+        "configured": bool(key and key != "your_api_key_here"),
+        "masked_key": masked,
+        "base_url": base_url,
+        "model": model,
+        "is_env_source": not bool(db_key)
+    }
+
+@router.put("/settings/ai")
+def update_ai_settings(
+    data: schemas.AISettingUpdate,
+    admin: models.User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """更新 AI 大模型配置（即时持久化到数据库生效）"""
+    if data.api_key is not None and data.api_key.strip() != "":
+        set_setting(db, "ai_api_key", data.api_key.strip(), "AI 大模型 API 密钥")
+    if data.base_url is not None and data.base_url.strip() != "":
+        set_setting(db, "ai_base_url", data.base_url.strip(), "AI 大模型 Base URL")
+    if data.model is not None and data.model.strip() != "":
+        set_setting(db, "ai_model", data.model.strip(), "AI 大模型 Model")
+    return {"message": "AI 大模型识别引擎配置已成功保存并立即生效"}
+
 # ==================== 2. 用户与租户管理 ====================
 @router.get("/users", response_model=List[schemas.UserAdminDetail])
 def list_users(

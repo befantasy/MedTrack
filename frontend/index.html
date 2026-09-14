@@ -89,7 +89,7 @@
           </div>
         </div>
 
-        <div class="dropzone" onclick="document.getElementById('file-input').click()">
+        <div class="dropzone" id="upload-dropzone" onclick="document.getElementById('file-input').click()">
           <div class="dropzone-icon">📁</div>
           <p style="font-weight:600; color:#0369a1; font-size:1.05rem;">点击或拖拽手机拍照单据 / PDF 文件至此</p>
           <p style="font-size:0.85rem; color:#64748b; margin-top:6px;">支持 JPG、PNG、WEBP 及多页 PDF (最大支持 50MB)</p>
@@ -157,7 +157,41 @@
         </div>
       </div>
 
-      <!-- 2. 用户管理大表与工具栏 -->
+      <!-- 2. AI 视觉大模型引擎配置卡片 -->
+      <div class="card" style="margin-bottom:20px; border-left:4px solid #0284c7;">
+        <div class="card-title" style="flex-wrap:wrap; gap:12px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span>🤖 多模态 AI 识图引擎配置 (化验单 / 影像报告 / 病理单自动结构化提取)</span>
+            <span id="admin-ai-status-badge" class="badge" style="background:#e2e8f0; color:#334155;">检测中...</span>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="App.saveAISettings()">💾 保存 AI 配置</button>
+        </div>
+        <p style="font-size:0.86rem; color:#64748b; margin-top:-6px; margin-bottom:14px;">
+          兼容所有标准 OpenAI 格式视觉大模型。推荐使用 <strong>Google Gemini 2.0 Flash</strong>（高精度、极速、开箱免费调用），亦支持 Qwen-VL、GPT-4o、Moonshot 等或各大中转 API。
+        </p>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:16px;">
+          <div>
+            <label class="form-label" style="font-weight:600;">大模型 API Key：</label>
+            <div style="display:flex; gap:8px;">
+              <input type="password" id="admin-ai-key" class="form-control" placeholder="填入 API Key (如 AIzaSy... / sk-...)" autocomplete="off">
+              <button class="btn btn-secondary btn-sm" type="button" onclick="App.toggleAiKeyVisibility()">👁️</button>
+            </div>
+            <div id="admin-ai-key-hint" style="font-size:0.78rem; color:#64748b; margin-top:4px;">未配置（若留空将保持原有密钥不变）</div>
+          </div>
+          <div>
+            <label class="form-label" style="font-weight:600;">接口 Base URL：</label>
+            <input type="text" id="admin-ai-base-url" class="form-control" placeholder="https://generativelanguage.googleapis.com/v1beta/openai/">
+            <div style="font-size:0.78rem; color:#64748b; margin-top:4px;">Gemini 默认: <code>https://generativelanguage.googleapis.com/v1beta/openai/</code></div>
+          </div>
+          <div>
+            <label class="form-label" style="font-weight:600;">模型名称 (Model)：</label>
+            <input type="text" id="admin-ai-model" class="form-control" placeholder="gemini-2.0-flash">
+            <div style="font-size:0.78rem; color:#64748b; margin-top:4px;">如: <code>gemini-2.0-flash</code>, <code>gpt-4o</code>, <code>qwen-vl-max</code></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. 用户管理大表与工具栏 -->
       <div class="card">
         <div class="card-title" style="flex-wrap:wrap; gap:12px;">
           <div style="display:flex; align-items:center; gap:8px;">
@@ -714,9 +748,9 @@
   </div>
 
   <!-- 引入逻辑脚本 (加版本号防浏览器强缓存) -->
-  <script src="js/api.js?v=2.0"></script>
-  <script src="js/timeline.js?v=2.0"></script>
-  <script src="js/charts.js?v=2.0"></script>
-  <script src="js/app.js?v=2.0"></script>
+  <script src="js/api.js?v=2.1"></script>
+  <script src="js/timeline.js?v=2.1"></script>
+  <script src="js/charts.js?v=2.1"></script>
+  <script src="js/app.js?v=2.1"></script>
 </body>
 </html>

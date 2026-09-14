@@ -1,7 +1,7 @@
 import base64
 import json
 import re
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 import httpx
 from config import settings
 
@@ -9,18 +9,46 @@ class AIExtractorService:
     """多模态视觉大模型智能医疗单据结构化解析器"""
 
     def __init__(self):
-        self.api_key = settings.AI_API_KEY
-        self.base_url = settings.AI_BASE_URL.rstrip('/')
-        self.model = settings.AI_MODEL
+        self.default_api_key = settings.AI_API_KEY
+        self.default_base_url = settings.AI_BASE_URL.rstrip('/')
+        self.default_model = settings.AI_MODEL
 
-    async def analyze_document(self, file_bytes: bytes, mime_type: str, doc_type: str) -> Dict[str, Any]:
+    def get_config(self, db: Optional[Any] = None) -> Tuple[str, str, str]:
+        """动态获取当前生效的 API Key, Base URL, Model，优先数据库配置，次选环境变量"""
+        api_key = ""
+        base_url = ""
+        model = ""
+        if db is not None:
+            try:
+                import models
+                setting_rows = db.query(models.SystemSetting).filter(
+                    models.SystemSetting.key.in_(["ai_api_key", "ai_base_url", "ai_model"])
+                ).all()
+                settings_map = {row.key: row.value for row in setting_rows}
+                api_key = settings_map.get("ai_api_key", "").strip()
+                base_url = settings_map.get("ai_base_url", "").strip()
+                model = settings_map.get("ai_model", "").strip()
+            except Exception:
+                pass
+
+        api_key = api_key or self.default_api_key
+        base_url = base_url or self.default_base_url
+        model = model or self.default_model
+        return api_key, base_url.rstrip('/'), model
+
+    async def analyze_document(self, file_bytes: bytes, mime_type: str, doc_type: str, db: Optional[Any] = None) -> Dict[str, Any]:
         """
         统一入口:
         doc_type: 'lab' (化验单), 'imaging' (影像报告), 'pathology' (病理单), 'discharge' (出院记录/化疗单)
         """
-        # 如果未配置 API Key，返回高质量模拟测试数据，确保开箱即可演示体验
-        if not self.api_key or self.api_key == "your_api_key_here":
-            return self._get_mock_data(doc_type)
+        api_key, base_url, model = self.get_config(db)
+
+        # 如果未配置 API Key，返回高质量模拟测试数据，并显式标注 _is_mock
+        if not api_key or api_key == "your_api_key_here":
+            mock = self._get_mock_data(doc_type)
+            mock["_is_mock"] = True
+            mock["_mock_notice"] = "未配置大模型 API Key（AI_API_KEY），当前展示内置演示样例数据。请在【系统管理】或 VPS 环境变量中配置 API Key 以启用真实 AI 识别。"
+            return mock
 
         prompt = self._get_prompt_for_type(doc_type)
         b64_image = base64.b64encode(file_bytes).decode('utf-8')
@@ -51,13 +79,13 @@ class AIExtractorService:
             }
         ]
 
-        endpoint = f"{self.base_url}/chat/completions"
+        endpoint = f"{base_url}/chat/completions"
         headers = {
-            "Authorization": f"Bearer {self.api_key}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
         payload = {
-            "model": self.model,
+            "model": model,
             "messages": messages,
             "temperature": 0.1,
             "response_format": {"type": "json_object"}
@@ -69,20 +97,30 @@ class AIExtractorService:
                 response.raise_for_status()
                 data = response.json()
                 content = data["choices"][0]["message"]["content"]
-                return self._clean_and_parse_json(content)
+                parsed = self._clean_and_parse_json(content)
+                parsed["_is_mock"] = False
+                parsed["_model_used"] = model
+                return parsed
         except Exception as e:
-            # 大模型调用出错时的保护
-            return {
-                "error": f"AI 解析失败: {str(e)}",
-                "fallback": self._get_mock_data(doc_type)
-            }
+            # 大模型调用出错时的保护：附带真实错误信息并降级返回模拟数据，保证页面不崩
+            mock = self._get_mock_data(doc_type)
+            mock["_is_mock"] = True
+            mock["_error"] = f"大模型接口请求异常: {str(e)}"
+            mock["_mock_notice"] = f"大模型解析失败 ({str(e)})，已自动回退到模拟数据。"
+            return mock
 
     def _clean_and_parse_json(self, text: str) -> Dict[str, Any]:
         """清除 markdown 标签并提取合法 JSON"""
         text = text.strip()
-        if text.startswith("```"):
-            text = re.sub(r"^```(?:json)?\n?", "", text)
-            text = re.sub(r"\n?```$", "", text)
+        # 1. 优先提取 ```json ... ``` 中的内容
+        match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
+        if match:
+            text = match.group(1).strip()
+        else:
+            # 2. 提取首个 { 到最后一个 }
+            bracket_match = re.search(r"(\{[\s\S]*\})", text)
+            if bracket_match:
+                text = bracket_match.group(1).strip()
         return json.loads(text)
 
     def _get_prompt_for_type(self, doc_type: str) -> str:
