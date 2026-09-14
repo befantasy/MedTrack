@@ -52,6 +52,10 @@ auto_migrate_db()
 # 自动创建全部新数据库表结构
 Base.metadata.create_all(bind=engine)
 
+# 预设系统默认超级管理员 (开箱即用: admin / admin)
+DEFAULT_ADMIN_USERNAME = "admin"
+DEFAULT_ADMIN_PASSWORD = "admin"
+
 # 自动播种并校准超级管理员账号
 def init_system_defaults():
     try:
@@ -62,21 +66,20 @@ def init_system_defaults():
                 db.add(models.SystemSetting(key="allow_registration", value="true", description="允许新用户公开自主注册"))
                 db.commit()
 
-            # 2. 确保目标管理员账号具有 is_admin=True
-            target_admin_name = settings.ADMIN_USERNAME or "admin"
-            existing_target = db.query(models.User).filter(models.User.username == target_admin_name).first()
+            # 2. 预设超级管理员账号 (admin / admin)
+            existing_target = db.query(models.User).filter(models.User.username == DEFAULT_ADMIN_USERNAME).first()
 
             if existing_target:
                 existing_target.is_admin = True
                 existing_target.is_active = True
-                # 无论用户何时在 .env 修改了 ADMIN_PASSWORD，容器启动时自动同步重设该管理员密码
-                if settings.ADMIN_PASSWORD:
-                    existing_target.password_hash = hash_password(settings.ADMIN_PASSWORD)
+                # 若此前残留的是旧版本初始密码 admin123456，自动校准为新的预设默认密码 admin
+                if verify_password("admin123456", existing_target.password_hash):
+                    existing_target.password_hash = hash_password(DEFAULT_ADMIN_PASSWORD)
                 db.commit()
             else:
-                hashed = hash_password(settings.ADMIN_PASSWORD or "admin123456")
+                hashed = hash_password(DEFAULT_ADMIN_PASSWORD)
                 new_admin = models.User(
-                    username=target_admin_name,
+                    username=DEFAULT_ADMIN_USERNAME,
                     password_hash=hashed,
                     is_admin=True,
                     is_active=True

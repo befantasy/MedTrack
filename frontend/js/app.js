@@ -51,9 +51,10 @@ function initAuthUI() {
       const adminBadge = isAdmin ? `<span class="badge" style="background:#fef3c7; color:#b45309; border:1px solid #fde68a;">🛡️ 管理员</span>` : '';
       const adminBtn = isAdmin ? `<button class="btn btn-primary btn-sm" style="background:#0284c7; font-weight:600;" onclick="switchTab('admin')">🛡️ 系统管理</button>` : '';
       userBar.innerHTML = `
-        <span style="font-size:0.9rem; color:#475569;">👤 <strong>${user.username || '患者'}</strong> ${adminBadge}</span>
+        <span style="font-size:0.9rem; color:#475569;">👤 <strong>${escapeHtml(user.username || '患者')}</strong> ${adminBadge}</span>
         ${adminBtn}
         <button class="btn btn-secondary btn-sm" onclick="openProfileModal()">档案设置</button>
+        <button class="btn btn-secondary btn-sm" onclick="openChangePasswordModal()">修改密码</button>
         <button class="btn btn-danger btn-sm" onclick="logout()">退出</button>
       `;
     }
@@ -1192,4 +1193,58 @@ const AdminModule = {
 
 window.AdminModule = AdminModule;
 window.App = AdminModule;
+
+// ==================== 个人修改密码模块 ====================
+function openChangePasswordModal() {
+  const elOld = document.getElementById('chg-old-pwd');
+  const elNew = document.getElementById('chg-new-pwd');
+  const elConfirm = document.getElementById('chg-confirm-pwd');
+  const elTip = document.getElementById('chg-pwd-tip');
+
+  if (elOld) elOld.value = '';
+  if (elNew) elNew.value = '';
+  if (elConfirm) elConfirm.value = '';
+  if (elTip) elTip.textContent = '';
+
+  const modal = document.getElementById('modal-change-password');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeChangePasswordModal() {
+  const modal = document.getElementById('modal-change-password');
+  if (modal) modal.style.display = 'none';
+}
+
+async function submitChangePassword() {
+  const oldPwd = document.getElementById('chg-old-pwd').value.trim();
+  const newPwd = document.getElementById('chg-new-pwd').value.trim();
+  const confirmPwd = document.getElementById('chg-confirm-pwd').value.trim();
+  const tip = document.getElementById('chg-pwd-tip');
+
+  if (!oldPwd) {
+    tip.textContent = '请输入当前原密码';
+    return;
+  }
+  if (!newPwd || newPwd.length < 4) {
+    tip.textContent = '新密码长度不能少于4位字符';
+    return;
+  }
+  if (newPwd !== confirmPwd) {
+    tip.textContent = '两次输入的新密码不一致';
+    return;
+  }
+
+  tip.textContent = '正在修改...';
+  try {
+    const res = await API.changePassword(oldPwd, newPwd);
+    alert(res.message || '密码修改成功！');
+    closeChangePasswordModal();
+  } catch (err) {
+    tip.textContent = err.message;
+  }
+}
+
+window.openChangePasswordModal = openChangePasswordModal;
+window.closeChangePasswordModal = closeChangePasswordModal;
+window.submitChangePassword = submitChangePassword;
 

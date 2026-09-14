@@ -53,6 +53,10 @@ class AdminUserCreate(BaseModel):
 class AdminPasswordReset(BaseModel):
     new_password: str
 
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
 class SystemSettingOut(BaseModel):
     key: str
     value: str

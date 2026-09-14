@@ -103,6 +103,13 @@ const API = {
     });
   },
 
+  async changePassword(oldPassword, newPassword) {
+    return await this.request('/auth/password', {
+      method: 'PUT',
+      body: JSON.stringify({ old_password: oldPassword, new_password: newPassword })
+    });
+  },
+
   // ==================== 肿瘤专科治疗与时间轴 ====================
   async getTimeline(targetUserId = null) {
     let url = '/oncology/timeline';
