@@ -257,6 +257,23 @@ const API = {
   },
 
   // ==================== 文件上传与 AI 识图 ====================
+  async uploadAndParseBatch(files, docType) {
+    const formData = new FormData();
+    for (let i = 0; i < files.length; i++) {
+      formData.append('files', files[i]);
+    }
+    formData.append('doc_type', docType);
+
+    return await this.request('/upload/parse-batch', {
+      method: 'POST',
+      body: formData
+    });
+  },
+
+  async getBatchStatus(taskId) {
+    return await this.request(`/upload/parse-batch/${taskId}`);
+  },
+
   async uploadAndParseDoc(file, docType) {
     const formData = new FormData();
     formData.append('file', file);
