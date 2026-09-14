@@ -13,6 +13,14 @@ router = APIRouter(prefix="/auth", tags=["用户认证与档案"])
 @router.post("/register", response_model=schemas.Token)
 def register(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
     """新用户自主注册，并初始化空档案"""
+    # 1. 检查全局注册开关
+    reg_setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "allow_registration").first()
+    if reg_setting and reg_setting.value.lower() in ("false", "0", "no"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="当前系统已关闭公开自主注册通道，请联系系统管理员分配账号"
+        )
+
     existing = db.query(models.User).filter(models.User.username == user_in.username).first()
     if existing:
         raise HTTPException(
@@ -20,8 +28,17 @@ def register(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
             detail="该用户名已被注册，请直接登录或更换用户名"
         )
     
+    # 若系统尚无任何用户，第一个注册的用户自动升级为超级管理员
+    user_count = db.query(models.User).count()
+    is_first_user = (user_count == 0)
+
     hashed = hash_password(user_in.password)
-    new_user = models.User(username=user_in.username, password_hash=hashed)
+    new_user = models.User(
+        username=user_in.username,
+        password_hash=hashed,
+        is_admin=is_first_user,
+        is_active=True
+    )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -74,6 +91,8 @@ def get_me(
         "user": {
             "id": current_user.id,
             "username": current_user.username,
+            "is_admin": current_user.is_admin,
+            "is_active": current_user.is_active,
             "created_at": current_user.created_at
         },
         "profile": profile

@@ -10,17 +10,19 @@ router = APIRouter(prefix="/charts", tags=["指标趋势图表数据"])
 
 @router.get("/available-metrics")
 def get_available_metrics(
+    target_user_id: int = None,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """获取当前用户所有已记录的指标清单，供前端下拉选择多指标自由对比绘图"""
+    """获取指定用户所有已记录的指标清单"""
+    user_id = target_user_id if (current_user.is_admin and target_user_id) else current_user.id
     items = db.query(
         models.LabItem.item_code,
         models.LabItem.item_name,
         models.LabItem.category,
         models.LabItem.unit
     ).filter(
-        models.LabItem.user_id == current_user.id
+        models.LabItem.user_id == user_id
     ).distinct().all()
 
     result = []
@@ -36,19 +38,21 @@ def get_available_metrics(
 @router.get("/series")
 def get_chart_series(
     codes: str = Query(..., description="以英文逗号分隔的指标代码，如 CEA,CA199 或 WBC,PLT"),
+    target_user_id: int = None,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     根据指定指标代码集合，返回标准 ECharts 时序数据集
     """
+    user_id = target_user_id if (current_user.is_admin and target_user_id) else current_user.id
     code_list = [c.strip().upper() for c in codes.split(",") if c.strip()]
     if not code_list:
         return {"dates": [], "series": []}
 
     # 查询该用户所有相关的指标记录并按日期正序排列
     items = db.query(models.LabItem).filter(
-        models.LabItem.user_id == current_user.id,
+        models.LabItem.user_id == user_id,
         models.LabItem.item_code.in_(code_list),
         models.LabItem.value != None
     ).order_by(models.LabItem.test_date.asc()).all()

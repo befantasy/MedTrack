@@ -13,11 +13,46 @@ from routers import (
     imaging_router,
     upload_router,
     chart_router,
-    share_router
+    share_router,
+    admin_router
 )
+from sqlalchemy.orm import Session
+from auth import hash_password
 
 # 自动创建全部数据库表结构
 Base.metadata.create_all(bind=engine)
+
+# 自动播种初始超级管理员账号
+def init_system_defaults():
+    try:
+        with Session(engine) as db:
+            admin_user = db.query(models.User).filter(models.User.is_admin == True).first()
+            if not admin_user and settings.ADMIN_USERNAME:
+                hashed = hash_password(settings.ADMIN_PASSWORD)
+                new_admin = models.User(
+                    username=settings.ADMIN_USERNAME,
+                    password_hash=hashed,
+                    is_admin=True,
+                    is_active=True
+                )
+                db.add(new_admin)
+                db.commit()
+                db.refresh(new_admin)
+
+                profile = models.CancerProfile(
+                    user_id=new_admin.id,
+                    patient_name="系统管理员",
+                    primary_site="未录入",
+                    pathology_type="未录入",
+                    current_staging="管理归档"
+                )
+                db.add(profile)
+                db.commit()
+    except Exception as e:
+        print(f"Warning: init_system_defaults failed: {e}")
+
+init_system_defaults()
+
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -47,6 +82,7 @@ app.include_router(imaging_router.router, prefix=settings.API_V1_STR)
 app.include_router(upload_router.router, prefix=settings.API_V1_STR)
 app.include_router(chart_router.router, prefix=settings.API_V1_STR)
 app.include_router(share_router.router, prefix=settings.API_V1_STR)
+app.include_router(admin_router.router, prefix=settings.API_V1_STR)
 
 @app.get("/health")
 def health_check():

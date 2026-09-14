@@ -99,8 +99,12 @@ const API = {
   },
 
   // ==================== 肿瘤专科治疗与时间轴 ====================
-  async getTimeline() {
-    return await this.request('/oncology/timeline');
+  async getTimeline(targetUserId = null) {
+    let url = '/oncology/timeline';
+    if (targetUserId) {
+      url += `?target_user_id=${encodeURIComponent(targetUserId)}`;
+    }
+    return await this.request(url);
   },
 
   async getSurgeries() {
@@ -208,12 +212,20 @@ const API = {
   },
 
   // ==================== 指标图表数据 ====================
-  async getAvailableMetrics() {
-    return await this.request('/charts/available-metrics');
+  async getAvailableMetrics(targetUserId = null) {
+    let url = '/charts/available-metrics';
+    if (targetUserId) {
+      url += `?target_user_id=${encodeURIComponent(targetUserId)}`;
+    }
+    return await this.request(url);
   },
 
-  async getChartSeries(codes) {
-    return await this.request(`/charts/series?codes=${encodeURIComponent(codes)}`);
+  async getChartSeries(codes, targetUserId = null) {
+    let url = `/charts/series?codes=${encodeURIComponent(codes)}`;
+    if (targetUserId) {
+      url += `&target_user_id=${encodeURIComponent(targetUserId)}`;
+    }
+    return await this.request(url);
   },
 
   // ==================== 就诊病历汇总与分享 ====================
@@ -234,6 +246,56 @@ const API = {
       url += `?code=${encodeURIComponent(accessCode)}`;
     }
     return await this.request(url);
+  },
+
+  // ==================== 超级管理员运维模块 ====================
+  async getAdminStats() {
+    return await this.request('/admin/stats');
+  },
+
+  async getAdminSettings() {
+    return await this.request('/admin/settings');
+  },
+
+  async toggleRegistration(value) {
+    return await this.request('/admin/settings/registration', {
+      method: 'PUT',
+      body: JSON.stringify({ value: String(value) })
+    });
+  },
+
+  async getAdminUsers() {
+    return await this.request('/admin/users');
+  },
+
+  async createAdminUser(data) {
+    return await this.request('/admin/users', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+
+  async toggleUserStatus(userId) {
+    return await this.request(`/admin/users/${userId}/status`, {
+      method: 'PUT'
+    });
+  },
+
+  async resetUserPassword(userId, newPassword) {
+    return await this.request(`/admin/users/${userId}/password`, {
+      method: 'PUT',
+      body: JSON.stringify({ new_password: newPassword })
+    });
+  },
+
+  async deleteAdminUser(userId) {
+    return await this.request(`/admin/users/${userId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async getUserDossier(userId) {
+    return await this.request(`/admin/users/${userId}/dossier`);
   }
 };
 

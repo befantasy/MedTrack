@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     AI_BASE_URL: str = os.getenv("AI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/")
     AI_MODEL: str = os.getenv("AI_MODEL", "gemini-2.0-flash")
     
+    # 初始默认超级管理员配置 (仅首次启动未创建超管时自动播种)
+    ADMIN_USERNAME: str = os.getenv("ADMIN_USERNAME", "admin")
+    ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "admin123456")
+
     # 文件存储目录
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", os.path.join(os.path.dirname(__file__), "uploads"))
 

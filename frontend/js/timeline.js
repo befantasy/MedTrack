@@ -12,7 +12,8 @@ const TimelineModule = {
 
     try {
       container.innerHTML = '<div style="text-align:center; padding:30px; color:#64748b;">正在加载全病程事件脉络...</div>';
-      this.events = await API.getTimeline();
+      const targetUserId = window.inspectTargetUserId || null;
+      this.events = await API.getTimeline(targetUserId);
       this.render(containerId);
     } catch (err) {
       container.innerHTML = `<div style="text-align:center; padding:30px; color:#ef4444;">加载失败: ${err.message}</div>`;

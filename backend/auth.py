@@ -79,3 +79,15 @@ async def get_current_user(
     if user is None or not user.is_active:
         raise credentials_exception
     return user
+
+async def get_current_admin(
+    current_user: models.User = Depends(get_current_user)
+) -> models.User:
+    """FastAPI 依赖注入：确保当前用户拥有超级管理员权限"""
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="当前操作需要系统管理员权限"
+        )
+    return current_user
+

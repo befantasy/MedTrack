@@ -12,6 +12,7 @@ class User(Base):
     username = Column(String(64), unique=True, index=True, nullable=False)
     password_hash = Column(String(256), nullable=False)
     is_active = Column(Boolean, default=True)
+    is_admin = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     # 关系映射
@@ -229,6 +230,15 @@ class ShareLink(Base):
     access_code = Column(String(16), default="")           # 可选 4 位访问提取码
     expires_at = Column(DateTime, nullable=False)          # 过期时间
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-
     user = relationship("User", back_populates="share_links")
+
+
+class SystemSetting(Base):
+    """系统全局动态配置表 (如开放注册开关等)"""
+    __tablename__ = "system_settings"
+
+    key = Column(String(64), primary_key=True, index=True)
+    value = Column(Text, nullable=False)
+    description = Column(String(256), default="")
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+

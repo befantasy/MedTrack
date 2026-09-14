@@ -14,11 +14,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 // ==================== 用户鉴权与初始化 ====================
 function initAuthUI() {
   const token = API.getToken();
-  const user = API.getUser();
+  const user = API.getUser() || {};
 
   const userBar = document.getElementById('user-bar');
   const authModal = document.getElementById('auth-modal');
   const mainApp = document.getElementById('main-app');
+  const adminNavBtn = document.getElementById('nav-btn-admin');
 
   if (!token) {
     if (authModal) authModal.style.display = 'flex';
@@ -26,9 +27,16 @@ function initAuthUI() {
   } else {
     if (authModal) authModal.style.display = 'none';
     if (mainApp) mainApp.style.display = 'block';
+
+    const isAdmin = Boolean(user && user.is_admin);
+    if (adminNavBtn) {
+      adminNavBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+    }
+
     if (userBar) {
+      const adminBadge = isAdmin ? `<span class="badge" style="background:#fef3c7; color:#b45309; border:1px solid #fde68a;">🛡️ 管理员</span>` : '';
       userBar.innerHTML = `
-        <span style="font-size:0.9rem; color:#475569;">👤 <strong>${user.username || '患者'}</strong></span>
+        <span style="font-size:0.9rem; color:#475569;">👤 <strong>${user.username || '患者'}</strong> ${adminBadge}</span>
         <button class="btn btn-secondary btn-sm" onclick="openProfileModal()">档案设置</button>
         <button class="btn btn-danger btn-sm" onclick="logout()">退出</button>
       `;
@@ -39,6 +47,10 @@ function initAuthUI() {
 async function initApp() {
   try {
     const res = await API.getMe();
+    if (res.user) {
+      localStorage.setItem('medtrack_user', JSON.stringify(res.user));
+      initAuthUI();
+    }
     currentProfile = res.profile || {};
     renderProfileHeader();
 
@@ -153,6 +165,8 @@ async function switchTab(tabId) {
     await loadTreatmentsList();
   } else if (tabId === 'report') {
     await loadConsultationReport();
+  } else if (tabId === 'admin') {
+    await AdminModule.loadDashboard();
   }
 }
 
@@ -709,3 +723,457 @@ async function submitAddTherapy() {
   closeAddTherapyModal();
   await loadTreatmentsList();
 }
+
+// ==================== 超级管理员运维模块 ====================
+const AdminModule = {
+  currentSettings: null,
+  activeDossier: null,
+
+  async loadDashboard() {
+    try {
+      // 1. 加载统计概览
+      const stats = await API.getAdminStats();
+      const elUsers = document.getElementById('admin-stat-users');
+      const elActive = document.getElementById('admin-stat-active');
+      const elTreatments = document.getElementById('admin-stat-treatments');
+      const elLabs = document.getElementById('admin-stat-labs');
+      const elStorage = document.getElementById('admin-stat-storage');
+
+      if (elUsers) elUsers.textContent = stats.total_users;
+      if (elActive) elActive.textContent = stats.active_users;
+      if (elTreatments) elTreatments.textContent = stats.total_treatments;
+      if (elLabs) elLabs.textContent = stats.total_labs_imaging;
+      if (elStorage) elStorage.textContent = `${stats.storage_usage_mb} MB`;
+
+      // 2. 加载系统设置（注册开关）
+      await this.loadSettings();
+
+      // 3. 加载全量用户列表
+      await this.loadUsers();
+    } catch (err) {
+      console.error('加载管理员控制台失败:', err);
+      alert('加载管理员数据失败: ' + err.message);
+    }
+  },
+
+  async loadSettings() {
+    try {
+      this.currentSettings = await API.getAdminSettings();
+      const badge = document.getElementById('reg-status-badge');
+      if (badge) {
+        if (this.currentSettings.allow_registration) {
+          badge.innerHTML = `<span class="badge badge-green">已开放 (允许公开注册)</span>`;
+        } else {
+          badge.innerHTML = `<span class="badge badge-red">已关闭 (仅管理员手动开通)</span>`;
+        }
+      }
+    } catch (err) {
+      console.error('获取系统设置失败:', err);
+    }
+  },
+
+  async toggleRegistration() {
+    try {
+      const current = this.currentSettings ? this.currentSettings.allow_registration : true;
+      const next = !current;
+      await API.toggleRegistration(next);
+      await this.loadSettings();
+      alert(`注册功能已${next ? '【开放】' : '【关闭】'}。${next ? '新访客可自主注册账户。' : '新访客无法自主注册，保护服务器算力与AI密钥额度。'}`);
+    } catch (err) {
+      alert('修改注册开关失败: ' + err.message);
+    }
+  },
+
+  async loadUsers() {
+    const tbody = document.getElementById('admin-user-tbody');
+    const countBadge = document.getElementById('admin-user-count');
+    if (!tbody) return;
+
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:20px; color:#94a3b8;">正在拉取用户数据与就诊摘要...</td></tr>`;
+
+    try {
+      const users = await API.getAdminUsers();
+      if (countBadge) countBadge.textContent = `${users.length} 位用户`;
+
+      if (users.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:20px; color:#94a3b8;">暂无用户数据</td></tr>`;
+        return;
+      }
+
+      const currentUser = API.getUser() || {};
+
+      tbody.innerHTML = users.map(u => {
+        const isSelf = u.id === currentUser.id;
+        const roleBadge = u.is_admin 
+          ? `<span class="badge" style="background:#fef3c7; color:#b45309; border:1px solid #fde68a;">🛡️ 超管</span>` 
+          : `<span class="badge badge-blue">普通用户</span>`;
+        const statusBadge = u.is_active 
+          ? `<span class="badge badge-green">正常</span>` 
+          : `<span class="badge badge-red">已冻结</span>`;
+
+        const summary = u.summary || { surgeries: 0, radiotherapies: 0, therapies: 0, labs: 0, imagings: 0, path: 0 };
+        const summaryText = `
+          <span title="手术">${summary.surgeries}手</span> | 
+          <span title="放疗">${summary.radiotherapies}放</span> | 
+          <span title="药物">${summary.therapies}药</span> | 
+          <span title="化验">${summary.labs}化</span> | 
+          <span title="影像">${summary.imagings}影</span>
+        `;
+
+        const dateStr = u.created_at ? u.created_at.slice(0, 10) : '-';
+        const primarySite = escapeHtml(u.primary_site || '-');
+        const pathologyType = escapeHtml(u.pathology_type || '-');
+        const patientName = escapeHtml(u.patient_name || '未填');
+
+        return `
+          <tr style="border-bottom:1px solid #f1f5f9; transition:background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+            <td style="padding:10px 8px; font-weight:600; color:#64748b;">${u.id}</td>
+            <td style="padding:10px 8px;">
+              <strong>${escapeHtml(u.username)}</strong>
+              ${isSelf ? '<span class="badge" style="background:#f1f5f9; color:#475569; font-size:0.7rem; margin-left:4px;">当前操作者</span>' : ''}
+            </td>
+            <td style="padding:10px 8px;">${patientName}</td>
+            <td style="padding:10px 8px; font-size:0.85rem; color:#475569;">${primarySite} / ${pathologyType}</td>
+            <td style="padding:10px 8px; font-size:0.82rem; color:#0284c7; white-space:nowrap;">${summaryText}</td>
+            <td style="padding:10px 8px; font-size:0.82rem; color:#64748b;">${dateStr}</td>
+            <td style="padding:10px 8px;">${roleBadge} ${statusBadge}</td>
+            <td style="padding:10px 8px; text-align:right; white-space:nowrap;">
+              <button class="btn btn-secondary btn-sm" style="padding:3px 8px; font-size:0.8rem; margin-right:4px;" onclick="App.inspectDossier(${u.id})">📑 查看病历全宗</button>
+              <button class="btn btn-primary btn-sm" style="padding:3px 8px; font-size:0.8rem; margin-right:4px;" onclick="App.enterInspectMode(${u.id}, '${patientName}', '${escapeHtml(u.username)}')">👁️ 穿透查阅看板</button>
+              <button class="btn btn-secondary btn-sm" style="padding:3px 8px; font-size:0.8rem; margin-right:4px;" onclick="App.openResetPwdModal(${u.id}, '${escapeHtml(u.username)}')">🔑 设密</button>
+              ${!isSelf ? `
+                <button class="btn ${u.is_active ? 'btn-secondary' : 'btn-primary'} btn-sm" style="padding:3px 8px; font-size:0.8rem; margin-right:4px;" onclick="App.toggleUserStatus(${u.id})">${u.is_active ? '❄️ 冻结' : '☀️ 启用'}</button>
+                <button class="btn btn-danger btn-sm" style="padding:3px 8px; font-size:0.8rem;" onclick="App.deleteUser(${u.id}, '${escapeHtml(u.username)}')">🗑️ 删除</button>
+              ` : ''}
+            </td>
+          </tr>
+        `;
+      }).join('');
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:20px; color:#ef4444;">拉取用户失败: ${err.message}</td></tr>`;
+    }
+  },
+
+  openAdminCreateUserModal() {
+    document.getElementById('admin-new-user').value = '';
+    document.getElementById('admin-new-pwd').value = '';
+    document.getElementById('admin-new-name').value = '';
+    document.getElementById('admin-new-site').value = '';
+    document.getElementById('admin-new-type').value = '';
+    document.getElementById('admin-new-isadmin').checked = false;
+    document.getElementById('admin-create-tip').textContent = '';
+    document.getElementById('modal-admin-create-user').style.display = 'flex';
+  },
+
+  closeAdminCreateUserModal() {
+    document.getElementById('modal-admin-create-user').style.display = 'none';
+  },
+
+  async submitAdminCreateUser() {
+    const username = document.getElementById('admin-new-user').value.trim();
+    const password = document.getElementById('admin-new-pwd').value.trim();
+    const patient_name = document.getElementById('admin-new-name').value.trim();
+    const primary_site = document.getElementById('admin-new-site').value.trim();
+    const pathology_type = document.getElementById('admin-new-type').value.trim();
+    const is_admin = document.getElementById('admin-new-isadmin').checked;
+    const tip = document.getElementById('admin-create-tip');
+
+    if (!username || !password) {
+      tip.textContent = '用户名和密码为必填项';
+      return;
+    }
+
+    try {
+      await API.createAdminUser({
+        username,
+        password,
+        patient_name,
+        primary_site,
+        pathology_type,
+        is_admin
+      });
+      this.closeAdminCreateUserModal();
+      await this.loadDashboard();
+      alert(`账号【${username}】创建成功！`);
+    } catch (err) {
+      tip.textContent = err.message;
+    }
+  },
+
+  openResetPwdModal(userId, username) {
+    document.getElementById('admin-pwd-target-id').value = userId;
+    document.getElementById('admin-pwd-target-name').textContent = username;
+    document.getElementById('admin-pwd-new').value = '';
+    document.getElementById('admin-pwd-tip').textContent = '';
+    document.getElementById('modal-admin-reset-pwd').style.display = 'flex';
+  },
+
+  closeAdminResetPwdModal() {
+    document.getElementById('modal-admin-reset-pwd').style.display = 'none';
+  },
+
+  async submitAdminResetPwd() {
+    const userId = document.getElementById('admin-pwd-target-id').value;
+    const newPassword = document.getElementById('admin-pwd-new').value.trim();
+    const tip = document.getElementById('admin-pwd-tip');
+
+    if (!newPassword || newPassword.length < 4) {
+      tip.textContent = '新密码不能少于4位字符';
+      return;
+    }
+
+    try {
+      await API.resetUserPassword(userId, newPassword);
+      this.closeAdminResetPwdModal();
+      alert('密码重置成功！');
+    } catch (err) {
+      tip.textContent = err.message;
+    }
+  },
+
+  async toggleUserStatus(userId) {
+    try {
+      const res = await API.toggleUserStatus(userId);
+      await this.loadUsers();
+      alert(`用户状态已切换为: ${res.is_active ? '【正常】' : '【已冻结】'}`);
+    } catch (err) {
+      alert('切换状态失败: ' + err.message);
+    }
+  },
+
+  async deleteUser(userId, username) {
+    if (!confirm(`⚠️ 高危操作确认：\n\n您确定要彻底删除用户【${username}】及其所有的肿瘤病历、手术记录、用药周期、化验单和影像记录吗？\n\n此操作将永久级联清除，不可恢复！`)) {
+      return;
+    }
+
+    try {
+      await API.deleteAdminUser(userId);
+      await this.loadDashboard();
+      alert(`用户【${username}】及其全量档案已删除。`);
+    } catch (err) {
+      alert('删除用户失败: ' + err.message);
+    }
+  },
+
+  async inspectDossier(userId) {
+    const box = document.getElementById('admin-dossier-content');
+    const badge = document.getElementById('dossier-patient-badge');
+    box.innerHTML = `<div style="text-align:center; padding:40px; color:#94a3b8;">正在调阅该患者全生命周期临床病历与检测档案...</div>`;
+    document.getElementById('modal-admin-dossier').style.display = 'flex';
+
+    try {
+      const dossier = await API.getUserDossier(userId);
+      this.activeDossier = dossier;
+
+      const u = dossier.user;
+      const p = dossier.profile || {};
+      badge.textContent = `${u.username} (患者: ${p.patient_name || '未设姓名'})`;
+
+      let markers = {};
+      try { markers = JSON.parse(p.molecular_markers || '{}'); } catch {}
+      const markerText = Object.entries(markers).map(([k, v]) => `<span class="badge badge-purple" style="margin-right:4px;">${k}: ${v}</span>`).join('') || '暂无';
+
+      let comorbs = [];
+      try { comorbs = JSON.parse(p.chronic_comorbidities || '[]'); } catch {}
+      const comorbText = comorbs.length ? comorbs.join('、') : '无';
+
+      // 渲染大抽屉各区块
+      box.innerHTML = `
+        <!-- 1. 患者肿瘤基准画像 -->
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:14px; margin-bottom:14px;">
+          <h4 style="margin:0 0 8px 0; color:#0f172a; font-size:1rem; display:flex; align-items:center; gap:6px;">
+            <span>🧬 肿瘤基准画像</span>
+            <span class="badge badge-blue">${escapeHtml(p.primary_site || '原发部位未填')}</span>
+            <span class="badge badge-green">${escapeHtml(p.pathology_type || '病理未填')}</span>
+          </h4>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:10px; font-size:0.88rem; color:#475569;">
+            <div>患者姓名: <strong>${escapeHtml(p.patient_name || '未填')}</strong></div>
+            <div>初诊分期: <strong>${escapeHtml(p.initial_staging || '未详')}</strong></div>
+            <div>当前分期: <strong>${escapeHtml(p.current_staging || '未详')}</strong></div>
+            <div>确诊日期: <strong>${escapeHtml(p.initial_diagnosis_date || '未详')}</strong></div>
+            <div>ECOG日常活动评分: <strong>${p.ecog_score !== null && p.ecog_score !== undefined ? p.ecog_score + ' 分' : '未评'}</strong></div>
+            <div>合并慢性病: <strong>${escapeHtml(comorbText)}</strong></div>
+            <div style="grid-column: 1 / -1;">驱动基因/免疫靶点: ${markerText}</div>
+          </div>
+        </div>
+
+        <!-- 2. 手术记录 -->
+        <div style="margin-bottom:14px;">
+          <h4 style="margin:0 0 8px 0; color:#0f172a; font-size:0.95rem;">🔪 手术与切除治疗 (${dossier.surgeries?.length || 0})</h4>
+          ${dossier.surgeries && dossier.surgeries.length > 0 ? `
+            <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+              <thead><tr style="background:#f1f5f9; color:#475569;"><th style="padding:6px;">术式名称</th><th>手术日期</th><th>切缘</th><th>淋巴结清扫</th><th>就诊医院</th><th>病理摘要</th></tr></thead>
+              <tbody>
+                ${dossier.surgeries.map(s => `
+                  <tr style="border-bottom:1px solid #f1f5f9;">
+                    <td style="padding:6px;"><strong>${escapeHtml(s.surgery_name)}</strong></td>
+                    <td>${s.surgery_date}</td>
+                    <td><span class="badge badge-red">${escapeHtml(s.margins || '-')}</span></td>
+                    <td>${escapeHtml(s.lymph_nodes || '-')}</td>
+                    <td>${escapeHtml(s.hospital || '-')}</td>
+                    <td style="font-size:0.8rem; color:#475569;">${escapeHtml(s.pathology_summary || '-')}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          ` : '<p style="color:#94a3b8; font-size:0.85rem; margin:0;">无手术记录</p>'}
+        </div>
+
+        <!-- 3. 放疗记录 -->
+        <div style="margin-bottom:14px;">
+          <h4 style="margin:0 0 8px 0; color:#0f172a; font-size:0.95rem;">⚡ 放射治疗记录 (${dossier.radiotherapies?.length || 0})</h4>
+          ${dossier.radiotherapies && dossier.radiotherapies.length > 0 ? `
+            <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+              <thead><tr style="background:#f1f5f9; color:#475569;"><th style="padding:6px;">照射靶区</th><th>技术</th><th>剂量 / 分次</th><th>起止日期</th><th>放射副反应</th></tr></thead>
+              <tbody>
+                ${dossier.radiotherapies.map(r => `
+                  <tr style="border-bottom:1px solid #f1f5f9;">
+                    <td style="padding:6px;"><strong>${escapeHtml(r.site)}</strong></td>
+                    <td>${escapeHtml(r.technique || '-')}</td>
+                    <td>${escapeHtml(r.total_dose || '-')} / ${escapeHtml(r.fractions || '-')}</td>
+                    <td>${r.start_date} ~ ${r.end_date || '进行中'}</td>
+                    <td style="font-size:0.8rem; color:#d97706;">${escapeHtml(r.toxicity_notes || '-')}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          ` : '<p style="color:#94a3b8; font-size:0.85rem; margin:0;">无放疗记录</p>'}
+        </div>
+
+        <!-- 4. 药物/靶向/化疗周期 -->
+        <div style="margin-bottom:14px;">
+          <h4 style="margin:0 0 8px 0; color:#0f172a; font-size:0.95rem;">💊 药物抗肿瘤全身治疗 (${dossier.systemic_therapies?.length || 0})</h4>
+          ${dossier.systemic_therapies && dossier.systemic_therapies.length > 0 ? `
+            <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+              <thead><tr style="background:#f1f5f9; color:#475569;"><th style="padding:6px;">方案名称</th><th>阶段/线数</th><th>类别</th><th>周期</th><th>时间范围</th><th>毒副反应</th></tr></thead>
+              <tbody>
+                ${dossier.systemic_therapies.map(t => `
+                  <tr style="border-bottom:1px solid #f1f5f9;">
+                    <td style="padding:6px;"><strong>${escapeHtml(t.regimen_name)}</strong></td>
+                    <td><span class="badge badge-blue">${escapeHtml(t.treatment_line)}</span></td>
+                    <td>${escapeHtml(t.therapy_type)}</td>
+                    <td>第 ${t.cycle_number} 周期</td>
+                    <td>${t.start_date} ~ ${t.end_date || '维持'}</td>
+                    <td style="font-size:0.8rem; color:#dc2626;">${escapeHtml(t.adverse_events || '-')}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          ` : '<p style="color:#94a3b8; font-size:0.85rem; margin:0;">无用药记录</p>'}
+        </div>
+
+        <!-- 5. 检验化验单与重要指标 -->
+        <div style="margin-bottom:14px;">
+          <h4 style="margin:0 0 8px 0; color:#0f172a; font-size:0.95rem;">🧪 临床检验化验 (${dossier.lab_reports?.length || 0})</h4>
+          ${dossier.lab_reports && dossier.lab_reports.length > 0 ? `
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              ${dossier.lab_reports.map(l => {
+                const abnormalCount = l.items?.filter(it => it.status !== 'NORMAL').length || 0;
+                return `
+                  <div style="border:1px solid #e2e8f0; border-radius:6px; padding:8px 12px; background:#fff;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                      <div>
+                        <strong>${escapeHtml(l.report_type || '化验报告')}</strong>
+                        <span style="font-size:0.82rem; color:#64748b; margin-left:8px;">${l.report_date} | ${escapeHtml(l.hospital || '未注医院')}</span>
+                      </div>
+                      ${abnormalCount > 0 ? `<span class="badge badge-red">${abnormalCount} 项异常</span>` : `<span class="badge badge-green">全部正常</span>`}
+                    </div>
+                    ${l.ai_summary ? `<div style="font-size:0.8rem; color:#0284c7; margin-top:4px;">💡 AI解析摘要: ${escapeHtml(l.ai_summary)}</div>` : ''}
+                    <div style="margin-top:6px; font-size:0.8rem; color:#475569;">
+                      包含测定项: ${l.items?.map(it => `${escapeHtml(it.item_name)}: <strong>${it.value !== null ? it.value : it.value_text}</strong>${it.unit ? ' ' + escapeHtml(it.unit) : ''}${it.status === 'HIGH' ? ' ↑' : (it.status === 'LOW' ? ' ↓' : '')}`).join('， ') || '无指标明细'}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          ` : '<p style="color:#94a3b8; font-size:0.85rem; margin:0;">无化验记录</p>'}
+        </div>
+
+        <!-- 6. 影像学检查 (CT/MRI/PET-CT) -->
+        <div style="margin-bottom:14px;">
+          <h4 style="margin:0 0 8px 0; color:#0f172a; font-size:0.95rem;">🩻 影像学检查与RECIST评估 (${dossier.imaging_reports?.length || 0})</h4>
+          ${dossier.imaging_reports && dossier.imaging_reports.length > 0 ? `
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              ${dossier.imaging_reports.map(im => `
+                <div style="border:1px solid #e2e8f0; border-radius:6px; padding:8px 12px; background:#fff;">
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                      <strong>${escapeHtml(im.modality)} - ${escapeHtml(im.body_part || '全腹/胸部')}</strong>
+                      <span style="font-size:0.82rem; color:#64748b; margin-left:8px;">${im.report_date} | ${escapeHtml(im.hospital || '未注医院')}</span>
+                    </div>
+                    ${im.recist_evaluation ? `<span class="badge badge-blue">RECIST: ${escapeHtml(im.recist_evaluation)}</span>` : ''}
+                  </div>
+                  ${im.impression ? `<div style="font-size:0.85rem; color:#166534; background:#f0fdf4; padding:6px; border-radius:4px; margin-top:6px;"><strong>结论:</strong> ${escapeHtml(im.impression)}</div>` : ''}
+                  ${im.findings ? `<div style="font-size:0.8rem; color:#475569; margin-top:4px;"><strong>征象表现:</strong> ${escapeHtml(im.findings)}</div>` : ''}
+                </div>
+              `).join('')}
+            </div>
+          ` : '<p style="color:#94a3b8; font-size:0.85rem; margin:0;">无影像学记录</p>'}
+        </div>
+
+        <!-- 7. 病理组织学诊断 -->
+        <div style="margin-bottom:14px;">
+          <h4 style="margin:0 0 8px 0; color:#0f172a; font-size:0.95rem;">🔬 病理学检测与免疫组化 (${dossier.pathology_reports?.length || 0})</h4>
+          ${dossier.pathology_reports && dossier.pathology_reports.length > 0 ? `
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              ${dossier.pathology_reports.map(p => `
+                <div style="border:1px solid #e2e8f0; border-radius:6px; padding:8px 12px; background:#fff;">
+                  <div>
+                    <strong>${escapeHtml(p.sample_site || '')} ${escapeHtml(p.sample_type || '活检标本')}</strong>
+                    <span style="font-size:0.82rem; color:#64748b; margin-left:8px;">${p.report_date} | 分化: ${escapeHtml(p.differentiation || '未详')}</span>
+                  </div>
+                  <div style="font-size:0.85rem; color:#6b21a8; background:#faf5ff; padding:6px; border-radius:4px; margin-top:6px;">
+                    <strong>病理诊断:</strong> ${escapeHtml(p.histological_diagnosis || '无')}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          ` : '<p style="color:#94a3b8; font-size:0.85rem; margin:0;">无病理记录</p>'}
+        </div>
+      `;
+    } catch (err) {
+      box.innerHTML = `<div style="color:#ef4444; padding:20px; text-align:center;">调阅档案失败: ${err.message}</div>`;
+    }
+  },
+
+  closeDossierModal() {
+    document.getElementById('modal-admin-dossier').style.display = 'none';
+  },
+
+  enterInspectModeFromDossier() {
+    if (!this.activeDossier) return;
+    const u = this.activeDossier.user;
+    const p = this.activeDossier.profile || {};
+    this.closeDossierModal();
+    this.enterInspectMode(u.id, p.patient_name || u.username, u.username);
+  },
+
+  async enterInspectMode(userId, patientName, username) {
+    window.inspectTargetUserId = userId;
+    const banner = document.getElementById('admin-inspect-banner');
+    if (banner) {
+      document.getElementById('inspect-patient-name').textContent = patientName || username;
+      document.getElementById('inspect-patient-user').textContent = username;
+      banner.style.display = 'flex';
+    }
+
+    // 自动切换至全病程时间轴选项卡查看该用户的真实生命周期
+    await switchTab('timeline');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  },
+
+  async exitInspectMode() {
+    window.inspectTargetUserId = null;
+    const banner = document.getElementById('admin-inspect-banner');
+    if (banner) {
+      banner.style.display = 'none';
+    }
+
+    // 重新切回管理员选项卡
+    await switchTab('admin');
+  }
+};
+
+window.AdminModule = AdminModule;
+window.App = AdminModule;
+

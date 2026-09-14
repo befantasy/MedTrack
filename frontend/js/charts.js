@@ -8,9 +8,10 @@ const ChartsModule = {
   chronicChartInstance: null,
 
   async initAll() {
-    await this.renderTumorMarkers(['CEA', 'CA199', 'CA125']);
-    await this.renderSafetyMarkers(['WBC', 'PLT', 'ALT', 'Cr']);
-    await this.renderChronicMarkers(['GLU', 'HbA1c']);
+    const targetUserId = window.inspectTargetUserId || null;
+    await this.renderTumorMarkers(['CEA', 'CA199', 'CA125'], targetUserId);
+    await this.renderSafetyMarkers(['WBC', 'PLT', 'ALT', 'Cr'], targetUserId);
+    await this.renderChronicMarkers(['GLU', 'HbA1c'], targetUserId);
 
     window.addEventListener('resize', () => {
       if (this.tumorChartInstance) this.tumorChartInstance.resize();
@@ -19,7 +20,7 @@ const ChartsModule = {
     });
   },
 
-  async renderTumorMarkers(codes = ['CEA', 'CA199']) {
+  async renderTumorMarkers(codes = ['CEA', 'CA199'], targetUserId = null) {
     const dom = document.getElementById('chart-tumor-markers');
     if (!dom || typeof echarts === 'undefined') return;
 
@@ -30,7 +31,7 @@ const ChartsModule = {
     this.tumorChartInstance.showLoading();
 
     try {
-      const data = await API.getChartSeries(codes.join(','));
+      const data = await API.getChartSeries(codes.join(','), targetUserId);
       this.tumorChartInstance.hideLoading();
 
       if (!data.dates || data.dates.length === 0 || !data.series || data.series.length === 0) {
@@ -94,7 +95,7 @@ const ChartsModule = {
     }
   },
 
-  async renderSafetyMarkers(codes = ['WBC', 'PLT', 'ALT', 'Cr']) {
+  async renderSafetyMarkers(codes = ['WBC', 'PLT', 'ALT', 'Cr'], targetUserId = null) {
     const dom = document.getElementById('chart-safety-markers');
     if (!dom || typeof echarts === 'undefined') return;
 
@@ -105,7 +106,7 @@ const ChartsModule = {
     this.safetyChartInstance.showLoading();
 
     try {
-      const data = await API.getChartSeries(codes.join(','));
+      const data = await API.getChartSeries(codes.join(','), targetUserId);
       this.safetyChartInstance.hideLoading();
 
       if (!data.dates || data.dates.length === 0 || !data.series || data.series.length === 0) {
@@ -140,7 +141,7 @@ const ChartsModule = {
     }
   },
 
-  async renderChronicMarkers(codes = ['GLU', 'HbA1c']) {
+  async renderChronicMarkers(codes = ['GLU', 'HbA1c'], targetUserId = null) {
     const dom = document.getElementById('chart-chronic-markers');
     if (!dom || typeof echarts === 'undefined') return;
 
@@ -151,7 +152,7 @@ const ChartsModule = {
     this.chronicChartInstance.showLoading();
 
     try {
-      const data = await API.getChartSeries(codes.join(','));
+      const data = await API.getChartSeries(codes.join(','), targetUserId);
       this.chronicChartInstance.hideLoading();
 
       if (!data.dates || data.dates.length === 0 || !data.series || data.series.length === 0) {

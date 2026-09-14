@@ -121,12 +121,17 @@ def delete_medical_record(id: int, current_user: models.User = Depends(get_curre
 
 # ==================== 全病程治疗全景时间轴 (Swimlane Timeline) ====================
 @router.get("/timeline", response_model=List[schemas.TimelineEvent])
-def get_full_timeline(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_full_timeline(
+    target_user_id: int = None,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """聚合患者所有医疗事件并按日期降序排列，供给前端泳道时间轴渲染"""
+    user_id = target_user_id if (current_user.is_admin and target_user_id) else current_user.id
     events: List[schemas.TimelineEvent] = []
     
     # 1. 手术
-    for s in db.query(models.Surgery).filter(models.Surgery.user_id == current_user.id).all():
+    for s in db.query(models.Surgery).filter(models.Surgery.user_id == user_id).all():
         events.append(schemas.TimelineEvent(
             id=f"surgery_{s.id}",
             event_date=s.surgery_date,
@@ -139,7 +144,7 @@ def get_full_timeline(current_user: models.User = Depends(get_current_user), db:
         ))
 
     # 2. 放疗
-    for r in db.query(models.Radiotherapy).filter(models.Radiotherapy.user_id == current_user.id).all():
+    for r in db.query(models.Radiotherapy).filter(models.Radiotherapy.user_id == user_id).all():
         events.append(schemas.TimelineEvent(
             id=f"radio_{r.id}",
             event_date=r.start_date,
@@ -152,7 +157,7 @@ def get_full_timeline(current_user: models.User = Depends(get_current_user), db:
         ))
 
     # 3. 系统药物治疗
-    for t in db.query(models.SystemicTherapy).filter(models.SystemicTherapy.user_id == current_user.id).all():
+    for t in db.query(models.SystemicTherapy).filter(models.SystemicTherapy.user_id == user_id).all():
         events.append(schemas.TimelineEvent(
             id=f"therapy_{t.id}",
             event_date=t.start_date,
@@ -165,7 +170,7 @@ def get_full_timeline(current_user: models.User = Depends(get_current_user), db:
         ))
 
     # 4. 影像复查
-    for img in db.query(models.ImagingReport).filter(models.ImagingReport.user_id == current_user.id).all():
+    for img in db.query(models.ImagingReport).filter(models.ImagingReport.user_id == user_id).all():
         events.append(schemas.TimelineEvent(
             id=f"imaging_{img.id}",
             event_date=img.report_date,
@@ -178,7 +183,7 @@ def get_full_timeline(current_user: models.User = Depends(get_current_user), db:
         ))
 
     # 5. 化验检验
-    for lab in db.query(models.LabReport).filter(models.LabReport.user_id == current_user.id).all():
+    for lab in db.query(models.LabReport).filter(models.LabReport.user_id == user_id).all():
         item_count = len(lab.items)
         abnormal_items = [it.item_code for it in lab.items if it.status in ("HIGH", "LOW", "ABNORMAL")]
         badge_text = f"{len(abnormal_items)}项异常" if abnormal_items else "指标平稳"
@@ -194,7 +199,7 @@ def get_full_timeline(current_user: models.User = Depends(get_current_user), db:
         ))
 
     # 6. 病理报告
-    for p in db.query(models.PathologyReport).filter(models.PathologyReport.user_id == current_user.id).all():
+    for p in db.query(models.PathologyReport).filter(models.PathologyReport.user_id == user_id).all():
         events.append(schemas.TimelineEvent(
             id=f"pathology_{p.id}",
             event_date=p.report_date,
@@ -207,7 +212,7 @@ def get_full_timeline(current_user: models.User = Depends(get_current_user), db:
         ))
 
     # 7. 门诊随访与症状记录
-    for m in db.query(models.MedicalRecord).filter(models.MedicalRecord.user_id == current_user.id).all():
+    for m in db.query(models.MedicalRecord).filter(models.MedicalRecord.user_id == user_id).all():
         events.append(schemas.TimelineEvent(
             id=f"record_{m.id}",
             event_date=m.record_date,

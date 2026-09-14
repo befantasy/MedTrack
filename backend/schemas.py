@@ -14,6 +14,8 @@ class UserLogin(BaseModel):
 class UserOut(BaseModel):
     id: int
     username: str
+    is_admin: bool = False
+    is_active: bool = True
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
@@ -21,6 +23,54 @@ class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserOut
+
+# ==================== 管理员与运维模型 ====================
+class UserAdminDetail(BaseModel):
+    id: int
+    username: str
+    is_admin: bool = False
+    is_active: bool = True
+    created_at: datetime
+    patient_name: Optional[str] = ""
+    primary_site: Optional[str] = ""
+    pathology_type: Optional[str] = ""
+    current_staging: Optional[str] = ""
+    surgeries_count: int = 0
+    radiotherapies_count: int = 0
+    systemic_therapies_count: int = 0
+    lab_reports_count: int = 0
+    imaging_reports_count: int = 0
+    model_config = ConfigDict(from_attributes=True)
+
+class AdminUserCreate(BaseModel):
+    username: str
+    password: str
+    is_admin: bool = False
+    patient_name: Optional[str] = ""
+    primary_site: Optional[str] = "未录入"
+    pathology_type: Optional[str] = "未录入"
+
+class AdminPasswordReset(BaseModel):
+    new_password: str
+
+class SystemSettingOut(BaseModel):
+    key: str
+    value: str
+    description: Optional[str] = ""
+    model_config = ConfigDict(from_attributes=True)
+
+class SystemSettingUpdate(BaseModel):
+    value: str
+
+class AdminStatsOut(BaseModel):
+    total_users: int
+    active_users: int
+    allow_registration: bool
+    total_treatments: int
+    total_labs: int
+    total_imaging: int
+    total_pathology: int
+    uploads_size_bytes: int
 
 # ==================== 肿瘤基准档案 ====================
 class CancerProfileBase(BaseModel):
