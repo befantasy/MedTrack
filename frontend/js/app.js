@@ -678,7 +678,8 @@ async function loadUploadedDocs() {
             <div style="font-size:0.9rem; color:#475569;">${escapeHtml(doc.summary)}</div>
           </div>
           <div>
-            <button class="btn btn-secondary btn-sm" style="color:#ef4444; border-color:#fee2e2; background:#fef2f2;" onclick="deleteUploadedDoc('${doc.event_type}', ${realId})">🗑️ 删除记录</button>
+            <button class="btn btn-secondary btn-sm" style="margin-right:8px; color:#0284c7; border-color:#bae6fd; background:#f0f9ff;" onclick="openEditDocModal('${doc.event_type}', ${realId})">✏️ 编辑校对</button>
+<button class="btn btn-secondary btn-sm" style="color:#ef4444; border-color:#fee2e2; background:#fef2f2;" onclick="deleteUploadedDoc('${doc.event_type}', ${realId})">🗑️ 删除</button>
           </div>
         </div>
       `;
@@ -2041,3 +2042,169 @@ window.openChangePasswordModal = openChangePasswordModal;
 window.closeChangePasswordModal = closeChangePasswordModal;
 window.submitChangePassword = submitChangePassword;
 
+
+
+// ==================== 存入后二次编辑单据 (Post-save Edit) ====================
+let currentEditDoc = null;
+let currentEditData = null;
+
+async function openEditDocModal(type, id) {
+  currentEditDoc = { type, id };
+  const body = document.getElementById('edit-doc-body');
+  const title = document.getElementById('edit-doc-title');
+  body.innerHTML = '<div style="text-align:center; padding:20px; color:#64748b;">正在加载数据...</div>';
+  document.getElementById('modal-edit-doc').style.display = 'flex';
+  
+  try {
+    if (type === 'lab') {
+      title.textContent = '✏️ 编辑校对化验单';
+      const list = await API.getLabReports();
+      const doc = list.find(d => d.id == id);
+      if(!doc) throw new Error("找不到该记录");
+      currentEditData = doc;
+      
+      let rows = (doc.items || []).map((it, idx) => {
+        return `
+          <tr>
+            <td><input class="form-control form-control-sm" id="em-lab-${idx}-name" value="${escapeHtml(it.item_name || it.name || '')}"></td>
+            <td><input class="form-control form-control-sm" id="em-lab-${idx}-code" value="${escapeHtml(it.item_code || it.code || '')}"></td>
+            <td><input class="form-control form-control-sm" id="em-lab-${idx}-value" value="${it.value !== null && it.value !== undefined ? it.value : (it.value_text || '')}"></td>
+            <td><input class="form-control form-control-sm" id="em-lab-${idx}-unit" value="${escapeHtml(it.unit || '')}"></td>
+            <td><input class="form-control form-control-sm" id="em-lab-${idx}-range" value="${escapeHtml(it.ref_range || '')}"></td>
+          </tr>
+        `;
+      }).join('');
+      
+      body.innerHTML = `
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+          <input class="form-control form-control-sm" id="em-lab-type" value="${escapeHtml(doc.report_type || '')}" placeholder="类型">
+          <input type="date" class="form-control form-control-sm" id="em-lab-date" value="${escapeHtml(doc.report_date || '')}">
+          <input class="form-control form-control-sm" id="em-lab-hospital" value="${escapeHtml(doc.hospital || '')}" placeholder="医院">
+        </div>
+        <div class="table-responsive">
+          <table class="med-table">
+            <thead>
+              <tr><th>项目名称</th><th>代码</th><th>测定值</th><th>单位</th><th>参考区间</th></tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    } else if (type === 'imaging') {
+      title.textContent = '✏️ 编辑校对影像报告';
+      const list = await API.getImagingReports();
+      const doc = list.find(d => d.id == id);
+      if(!doc) throw new Error("找不到该记录");
+      currentEditData = doc;
+      
+      body.innerHTML = `
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+          <input class="form-control form-control-sm" id="em-img-modality" value="${escapeHtml(doc.modality || '')}" placeholder="类别">
+          <input class="form-control form-control-sm" id="em-img-part" value="${escapeHtml(doc.body_part || '')}" placeholder="部位">
+          <input type="date" class="form-control form-control-sm" id="em-img-date" value="${escapeHtml(doc.report_date || '')}">
+        </div>
+        <div style="margin-bottom:10px;">
+          <label class="form-label" style="font-size:0.85rem;">检查所见</label>
+          <textarea class="form-control" id="em-img-findings" rows="3">${escapeHtml(doc.findings || '')}</textarea>
+        </div>
+        <div>
+          <label class="form-label" style="font-size:0.85rem;">诊断结论 (Impression)</label>
+          <textarea class="form-control" id="em-img-impression" rows="3">${escapeHtml(doc.impression || '')}</textarea>
+        </div>
+      `;
+    } else if (type === 'pathology') {
+      title.textContent = '✏️ 编辑校对病理报告';
+      const list = await API.getPathologies();
+      const doc = list.find(d => d.id == id);
+      if(!doc) throw new Error("找不到该记录");
+      currentEditData = doc;
+      
+      body.innerHTML = `
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+          <input class="form-control form-control-sm" id="em-path-type" value="${escapeHtml(doc.sample_type || '')}" placeholder="标本类型">
+          <input type="date" class="form-control form-control-sm" id="em-path-date" value="${escapeHtml(doc.report_date || '')}">
+        </div>
+        <div style="margin-bottom:10px;">
+          <label class="form-label" style="font-size:0.85rem;">病理诊断</label>
+          <textarea class="form-control" id="em-path-diag" rows="4">${escapeHtml(doc.histological_diagnosis || '')}</textarea>
+        </div>
+      `;
+    }
+  } catch (err) {
+    body.innerHTML = `<div style="color:#ef4444; padding:20px;">数据加载失败: ${err.message}</div>`;
+  }
+}
+
+function closeEditDocModal() {
+  document.getElementById('modal-edit-doc').style.display = 'none';
+  currentEditDoc = null;
+  currentEditData = null;
+}
+
+async function submitEditDoc() {
+  if (!currentEditDoc || !currentEditData) return;
+  const { type, id } = currentEditDoc;
+  
+  try {
+    if (type === 'lab') {
+      const items = [];
+      (currentEditData.items || []).forEach((_, idx) => {
+        const vCode = document.getElementById(`em-lab-${idx}-code`)?.value || 'OTHER';
+        let vValStr = document.getElementById(`em-lab-${idx}-value`)?.value || '';
+        let parsedVal = parseFloat(vValStr.replace(/[^\d.-]/g, ''));
+        
+        items.push({
+          item_name: document.getElementById(`em-lab-${idx}-name`)?.value || '未知',
+          item_code: vCode.toUpperCase().trim(),
+          value: isNaN(parsedVal) ? null : parsedVal,
+          value_text: vValStr,
+          unit: document.getElementById(`em-lab-${idx}-unit`)?.value || '',
+          ref_range: document.getElementById(`em-lab-${idx}-range`)?.value || '',
+          test_date: document.getElementById('em-lab-date')?.value || ''
+        });
+      });
+      
+      await API.updateLabReport(id, {
+        report_type: document.getElementById('em-lab-type')?.value || '',
+        report_date: document.getElementById('em-lab-date')?.value || '',
+        hospital: document.getElementById('em-lab-hospital')?.value || '',
+        items: items
+      });
+    } else if (type === 'imaging') {
+      await API.updateImagingReport(id, {
+        modality: document.getElementById('em-img-modality')?.value || '',
+        body_part: document.getElementById('em-img-part')?.value || '',
+        report_date: document.getElementById('em-img-date')?.value || '',
+        findings: document.getElementById('em-img-findings')?.value || '',
+        impression: document.getElementById('em-img-impression')?.value || ''
+      });
+    } else if (type === 'pathology') {
+      await API.updatePathology(id, {
+        sample_type: document.getElementById('em-path-type')?.value || '',
+        report_date: document.getElementById('em-path-date')?.value || '',
+        histological_diagnosis: document.getElementById('em-path-diag')?.value || ''
+      });
+    }
+    
+    alert('保存修改成功！');
+    closeEditDocModal();
+    
+    await loadUploadedDocs();
+    await TimelineModule.load();
+    if (window.ChartsModule) {
+      window.ChartsModule.tumorChartInstance = null;
+      window.ChartsModule.safetyChartInstance = null;
+      window.ChartsModule.chronicChartInstance = null;
+      window.ChartsModule.focusChartInstance = null;
+      if (document.getElementById('tab-charts').style.display === 'block') {
+        ChartsModule.initAll();
+      }
+    }
+  } catch (err) {
+    alert(`保存失败: ${err.message}`);
+  }
+}
+
+window.openEditDocModal = openEditDocModal;
+window.closeEditDocModal = closeEditDocModal;
+window.submitEditDoc = submitEditDoc;
