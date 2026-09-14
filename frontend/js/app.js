@@ -686,22 +686,22 @@ async function loadUploadedDocs() {
       const cfg = typeConfig[doc.event_type];
       const realId = doc.id.split('_')[1];
       html += `
-        <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:14px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
-          <div>
-            <div style="margin-bottom:6px;">
-              <span style="margin-right:6px;">${cfg.icon}</span>
-              <span class="badge ${cfg.badge}" style="margin-right:8px;">${cfg.name}</span>
-              <strong style="color:#0f172a;">${escapeHtml(doc.title)}</strong>
-              <span style="font-size:0.85rem; color:#64748b; margin-left:8px;">📅 ${doc.event_date}</span>
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:14px; border-radius:8px; display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+            <div style="flex:1; overflow:hidden;">
+              <div style="margin-bottom:6px;">
+                <span style="margin-right:6px;">${cfg.icon}</span>
+                <span class="badge ${cfg.badge}" style="margin-right:8px;">${cfg.name}</span>
+                <strong style="color:#0f172a;">${escapeHtml(doc.title)}</strong>
+                <span style="font-size:0.85rem; color:#64748b; margin-left:8px;">📅 ${doc.event_date}</span>
+              </div>
+              <div style="font-size:0.9rem; color:#475569; line-height:1.4;">${escapeHtml(doc.summary)}</div>
             </div>
-            <div style="font-size:0.9rem; color:#475569;">${escapeHtml(doc.summary)}</div>
-          </div>
-          <div>
-            <button class="btn btn-secondary btn-sm" style="margin-right:8px; color:#0284c7; border-color:#bae6fd; background:#f0f9ff;" onclick="openEditDocModal('${doc.event_type}', ${realId})">✏️ 编辑校对</button>
+            <div style="display:flex; flex-direction:column; gap:8px; flex-shrink:0;">
+              <button class="btn btn-secondary btn-sm" style="color:#0284c7; border-color:#bae6fd; background:#f0f9ff;" onclick="openEditDocModal('${doc.event_type}', ${realId})">✏️ 编辑校对</button>
 <button class="btn btn-secondary btn-sm" style="color:#ef4444; border-color:#fee2e2; background:#fef2f2;" onclick="deleteUploadedDoc('${doc.event_type}', ${realId})">🗑️ 删除</button>
+            </div>
           </div>
-        </div>
-      `;
+        `;
     });
     html += '</div>';
     container.innerHTML = html;

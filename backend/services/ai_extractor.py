@@ -171,7 +171,7 @@ class AIExtractorService:
         }
 
         try:
-            async with httpx.AsyncClient(timeout=120.0) as client:
+            async with httpx.AsyncClient(timeout=300.0) as client:
                 response = await client.post(endpoint, json=payload, headers=headers)
                 
                 # 兼容性容错：若中转站对 response_format 返回 400 不支持，自动移除后重试
