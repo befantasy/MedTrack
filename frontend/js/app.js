@@ -276,7 +276,7 @@ async function onFileSelected(event) {
   if (files.length === 0) return;
 
   if (files.length > 10) {
-    alert("⚠️ 一次最多只能上传 10 张单据，请分批上传！");
+    showToast("⚠️ 一次最多只能上传 10 张单据，请分批上传！");
     files = files.slice(0, 10);
   }
 
@@ -319,7 +319,7 @@ async function onFileSelected(event) {
           statusBox.style.display = 'none';
           
           if (statusData.errors && statusData.errors.length > 0) {
-            alert(`部分解析出错:\n` + statusData.errors.join('\n'));
+            showToast(`部分解析出错:\n` + statusData.errors.join('\n'));
           }
           
           if (statusData.results && statusData.results.length > 0) {
@@ -503,13 +503,13 @@ async function confirmSaveAllParsedDocs() {
       }
       successCount++;
     } catch (err) {
-      alert(`单据 ${qIndex + 1} 保存失败: ${err.message}`);
+      showToast(`单据 ${qIndex + 1} 保存失败: ${err.message}`);
     }
   }
 
   statusBox.style.display = 'none';
   if (successCount > 0) {
-    alert(`🎉 成功存入 ${successCount} 份单据档案！`);
+    showToast(`🎉 成功存入 ${successCount} 份单据档案！`);
     parsedDocsQueue = [];
     document.getElementById('upload-preview').style.display = 'none';
     
@@ -631,49 +631,53 @@ async function loadTreatmentsList() {
 }
 
 async function deleteSurgeryItem(id) {
-  if (!confirm('确认删除该手术记录？')) return;
-  try {
-    await API.deleteSurgery(id);
-    await loadTreatmentsList();
-  } catch (err) {
-    alert('删除失败: ' + err.message);
-  }
+  showConfirm('确认删除该手术记录？', async () => {
+    try {
+      await API.deleteSurgery(id);
+      await loadTreatmentsList();
+    } catch(err) {
+      showToast('删除失败: ' + err.message, 'error');
+    }
+  });
 }
 async function deleteRadioItem(id) {
-  if (!confirm('确认删除该放疗记录？')) return;
-  try {
-    await API.deleteRadiotherapy(id);
-    await loadTreatmentsList();
-  } catch (err) {
-    alert('删除失败: ' + err.message);
-  }
+  showConfirm('确认删除该放疗记录？', async () => {
+    try {
+      await API.deleteRadio(id);
+      await loadTreatmentsList();
+    } catch(err) {
+      showToast('删除失败: ' + err.message, 'error');
+    }
+  });
 }
 async function deleteTherapyItem(id) {
-  if (!confirm('确认删除该药物治疗记录？')) return;
-  try {
-    await API.deleteTherapy(id);
-    await loadTreatmentsList();
-  } catch (err) {
-    alert('删除失败: ' + err.message);
-  }
+  showConfirm('确认删除该药物治疗记录？', async () => {
+    try {
+      await API.deleteTherapy(id);
+      await loadTreatmentsList();
+    } catch(err) {
+      showToast('删除失败: ' + err.message, 'error');
+    }
+  });
 }
 
 async function deleteTimelineEvent(type, id) {
   const typeNameMap = { lab: '化验单', imaging: '影像报告', pathology: '病理报告' };
-  if (!confirm(`确认删除这份${typeNameMap[type] || '记录'}吗？删除后将无法恢复，且图表中的指标点也将被一并移除。`)) return;
-  try {
-    if (type === 'lab') await API.deleteLabReport(id);
-    else if (type === 'imaging') await API.deleteImagingReport(id);
-    else if (type === 'pathology') await API.deletePathology(id);
-    
-    alert('删除成功！');
-    await TimelineModule.load();
-    if (ChartsModule && typeof ChartsModule.load === 'function') {
-       ChartsModule.load(); // 刷新图表
+  showConfirm(`确认删除这份${typeNameMap[type] || '记录'}吗？删除后将无法恢复，且图表中的指标点也将被一并移除。`, async () => {
+    try {
+      if (type === 'lab') await API.deleteLabReport(id);
+      else if (type === 'imaging') await API.deleteImagingReport(id);
+      else if (type === 'pathology') await API.deletePathology(id);
+      
+      showToast('删除成功！');
+      await TimelineModule.load();
+      if (ChartsModule && typeof ChartsModule.load === 'function') {
+         ChartsModule.load(); // 刷新图表
+      }
+    } catch (err) {
+      showToast('删除失败: ' + err.message, 'error');
     }
-  } catch (err) {
-    alert('删除失败: ' + err.message);
-  }
+  });
 }
 window.deleteTimelineEvent = deleteTimelineEvent;
 
@@ -730,25 +734,23 @@ async function loadUploadedDocs() {
 
 async function deleteUploadedDoc(type, id) {
   const typeNameMap = { lab: '化验单', imaging: '影像报告', pathology: '病理报告' };
-  if (!confirm(`确认彻底删除这份「${typeNameMap[type] || '记录'}」吗？\n删除后将无法恢复，且图表中的相关指标数据也将从看板中移除。`)) return;
-  try {
-    if (type === 'lab') await API.deleteLabReport(id);
-    else if (type === 'imaging') await API.deleteImagingReport(id);
-    else if (type === 'pathology') await API.deletePathology(id);
-    
-    alert('删除成功！');
-    await loadUploadedDocs();
-    
-    // 清理图表缓存使其下次切换时刷新
-    if (window.ChartsModule) {
-      window.ChartsModule.tumorChartInstance = null;
-      window.ChartsModule.safetyChartInstance = null;
-      window.ChartsModule.chronicChartInstance = null;
-      window.ChartsModule.focusChartInstance = null;
+  showConfirm(`确认彻底删除这份「${typeNameMap[type] || '记录'}」吗？\n删除后将无法恢复，且图表中的相关指标数据也将从看板中移除。`, async () => {
+    try {
+      if (type === 'lab') await API.deleteLabReport(id);
+      else if (type === 'imaging') await API.deleteImagingReport(id);
+      else if (type === 'pathology') await API.deletePathology(id);
+      
+      showToast('删除成功！');
+      await loadUploadedDocs();
+      
+      // 清理图表缓存使其下次切换时刷新
+      if (typeof window.clearChartsCache === 'function') {
+        window.clearChartsCache();
+      }
+    } catch (err) {
+      showToast('删除失败: ' + err.message, 'error');
     }
-  } catch (err) {
-    alert('删除失败: ' + err.message);
-  }
+  });
 }
 window.loadUploadedDocs = loadUploadedDocs;
 window.deleteUploadedDoc = deleteUploadedDoc;
@@ -1009,13 +1011,13 @@ function addMolecularMarker() {
 
   const val = (valInput.value || '').trim();
   if (!gene) {
-    alert('请选择或输入基因/分子靶点名称 (如: EGFR)');
+    showToast('请选择或输入基因/分子靶点名称 (如: EGFR)');
     if (geneSel.value === '__custom__') geneCustom.focus();
     else geneSel.focus();
     return;
   }
   if (!val) {
-    alert('请输入该靶点的检测结果或突变分型 (如: 19-del 或 阳性)');
+    showToast('请输入该靶点的检测结果或突变分型 (如: 19-del 或 阳性)');
     valInput.focus();
     return;
   }
@@ -1227,9 +1229,9 @@ async function saveProfile() {
     currentProfile = await API.updateProfile(updated);
     renderProfileHeader();
     closeProfileModal();
-    alert('基准档案已成功保存！');
+    showToast('基准档案已成功保存！');
   } catch (err) {
-    alert(`保存失败: ${err.message}`);
+    showToast(`保存失败: ${err.message}`);
   }
 }
 
@@ -1260,7 +1262,7 @@ async function generateShareLink() {
       </div>
     `;
   } catch (err) {
-    alert(`生成失败: ${err.message}`);
+    showToast(`生成失败: ${err.message}`);
   }
 }
 
@@ -1269,7 +1271,7 @@ function copyShareLink() {
   if (!input) return;
   input.select();
   document.execCommand('copy');
-  alert('已复制到剪贴板！医生无需登录，在手机微信或浏览器中即可直接查阅整份病历。');
+  showToast('已复制到剪贴板！医生无需登录，在手机微信或浏览器中即可直接查阅整份病历。');
 }
 
 // ==================== 手术/放疗/药物 弹窗控制与提交 ====================
@@ -1318,7 +1320,7 @@ async function submitAddSurgery() {
     pathology_summary: document.getElementById('surg-pathology').value.trim()
   };
   if (!data.surgery_name || !data.surgery_date) {
-    alert('请填写术式名称和手术日期');
+    showToast('请填写术式名称和手术日期');
     return;
   }
   try {
@@ -1330,7 +1332,7 @@ async function submitAddSurgery() {
     closeAddSurgeryModal();
     await loadTreatmentsList();
   } catch (err) {
-    alert(`保存手术记录失败: ${err.message}`);
+    showToast(`保存手术记录失败: ${err.message}`);
   }
 }
 
@@ -1381,7 +1383,7 @@ async function submitAddRadio() {
     toxicity_notes: document.getElementById('radio-tox').value.trim()
   };
   if (!data.site || !data.start_date) {
-    alert('请填写照射靶区和开始日期');
+    showToast('请填写照射靶区和开始日期');
     return;
   }
   try {
@@ -1393,7 +1395,7 @@ async function submitAddRadio() {
     closeAddRadioModal();
     await loadTreatmentsList();
   } catch (err) {
-    alert(`保存放疗记录失败: ${err.message}`);
+    showToast(`保存放疗记录失败: ${err.message}`);
   }
 }
 
@@ -1447,7 +1449,7 @@ async function submitAddTherapy() {
     adverse_events: document.getElementById('ther-adverse').value.trim()
   };
   if (!data.regimen_name || !data.start_date) {
-    alert('请填写方案名称和开始日期');
+    showToast('请填写方案名称和开始日期');
     return;
   }
   try {
@@ -1459,7 +1461,7 @@ async function submitAddTherapy() {
     closeAddTherapyModal();
     await loadTreatmentsList();
   } catch (err) {
-    alert(`保存药物治疗记录失败: ${err.message}`);
+    showToast(`保存药物治疗记录失败: ${err.message}`);
   }
 }
 
@@ -1492,7 +1494,7 @@ const AdminModule = {
       await this.loadUsers();
     } catch (err) {
       console.error('加载管理员控制台失败:', err);
-      alert('加载管理员数据失败: ' + err.message);
+      showToast('加载管理员数据失败: ' + err.message);
     }
   },
 
@@ -1570,9 +1572,9 @@ const AdminModule = {
 
       const res = await API.updateAISettings(payload);
       await this.loadAISettings();
-      alert(`✅ ${res.message || 'AI 识别引擎配置保存成功！'}\n\n即时生效，现在前往【单据识别】上传化验单即可体验真实 AI 解析。`);
+      showToast(`✅ ${res.message || 'AI 识别引擎配置保存成功！'}\n\n即时生效，现在前往【单据识别】上传化验单即可体验真实 AI 解析。`);
     } catch (err) {
-      alert('保存 AI 配置失败: ' + err.message);
+      showToast('保存 AI 配置失败: ' + err.message);
     }
   },
 
@@ -1604,18 +1606,18 @@ const AdminModule = {
         if (statusBadge) {
           statusBadge.innerHTML = `<span class="badge" style="background:#dcfce7; color:#15803d; font-weight:bold;">✅ 连通成功 (${res.latency_ms}ms)</span>`;
         }
-        alert(`✅ 连通性测试成功！\n\n• 目标端点: ${res.endpoint}\n• 模型响应: 正常\n• 响应耗时: ${res.latency_ms} ms\n\n大模型识别服务与中转站已成功打通，您可以点击“保存配置”正式启用！`);
+        showToast(`✅ 连通性测试成功！\n\n• 目标端点: ${res.endpoint}\n• 模型响应: 正常\n• 响应耗时: ${res.latency_ms} ms\n\n大模型识别服务与中转站已成功打通，您可以点击“保存配置”正式启用！`);
       } else {
         if (statusBadge) {
           statusBadge.innerHTML = `<span class="badge" style="background:#fee2e2; color:#b91c1c; font-weight:bold;">❌ 连通失败</span>`;
         }
-        alert(`❌ 连通测试未通过:\n\n• 请求端点: ${res.endpoint}\n• 错误信息: ${res.message}\n\n💡 提示: 如果是 sub2api / OneAPI 等中转站，Base URL 建议填写为: https://api.medai.link/v1`);
+        showToast(`❌ 连通测试未通过:\n\n• 请求端点: ${res.endpoint}\n• 错误信息: ${res.message}\n\n💡 提示: 如果是 sub2api / OneAPI 等中转站，Base URL 建议填写为: https://api.medai.link/v1`);
       }
     } catch (err) {
       if (statusBadge) {
         statusBadge.innerHTML = `<span class="badge" style="background:#fee2e2; color:#b91c1c; font-weight:bold;">❌ 连通失败</span>`;
       }
-      alert(`测试请求异常: ${err.message}`);
+      showToast(`测试请求异常: ${err.message}`);
     }
   },
 
@@ -1625,9 +1627,9 @@ const AdminModule = {
       const next = !current;
       await API.toggleRegistration(next);
       await this.loadSettings();
-      alert(`注册功能已${next ? '【开放】' : '【关闭】'}。${next ? '新访客可自主注册账户。' : '新访客无法自主注册，保护服务器算力与AI密钥额度。'}`);
+      showToast(`注册功能已${next ? '【开放】' : '【关闭】'}。${next ? '新访客可自主注册账户。' : '新访客无法自主注册，保护服务器算力与AI密钥额度。'}`);
     } catch (err) {
-      alert('修改注册开关失败: ' + err.message);
+      showToast('修改注册开关失败: ' + err.message);
     }
   },
 
@@ -1741,7 +1743,7 @@ const AdminModule = {
       });
       this.closeAdminCreateUserModal();
       await this.loadDashboard();
-      alert(`账号【${username}】创建成功！`);
+      showToast(`账号【${username}】创建成功！`);
     } catch (err) {
       tip.textContent = err.message;
     }
@@ -1772,7 +1774,7 @@ const AdminModule = {
     try {
       await API.resetUserPassword(userId, newPassword);
       this.closeAdminResetPwdModal();
-      alert('密码重置成功！');
+      showToast('密码重置成功！');
     } catch (err) {
       tip.textContent = err.message;
     }
@@ -1782,24 +1784,20 @@ const AdminModule = {
     try {
       const res = await API.toggleUserStatus(userId);
       await this.loadUsers();
-      alert(`用户状态已切换为: ${res.is_active ? '【正常】' : '【已冻结】'}`);
+      showToast(`用户状态已切换为: ${res.is_active ? '【正常】' : '【已冻结】'}`);
     } catch (err) {
-      alert('切换状态失败: ' + err.message);
+      showToast('切换状态失败: ' + err.message);
     }
-  },
-
-  async deleteUser(userId, username) {
-    if (!confirm(`⚠️ 高危操作确认：\n\n您确定要彻底删除用户【${username}】及其所有的肿瘤病历、手术记录、用药周期、化验单和影像记录吗？\n\n此操作将永久级联清除，不可恢复！`)) {
-      return;
-    }
-
-    try {
-      await API.deleteAdminUser(userId);
-      await this.loadDashboard();
-      alert(`用户【${username}】及其全量档案已删除。`);
-    } catch (err) {
-      alert('删除用户失败: ' + err.message);
-    }
+  },  async deleteUser(userId, username) {
+    showConfirm(`⚠️ 高危操作确认：\n\n您确定要彻底删除用户【${username}】及其所有的肿瘤病历、手术记录、用药周期、化验单和影像记录吗？\n\n此操作将永久级联清除，不可恢复！`, async () => {
+      try {
+        await API.deleteAdminUser(userId);
+        await this.loadDashboard();
+        showToast(`用户【${username}】及其全量档案已删除。`);
+      } catch (err) {
+        showToast('删除用户失败: ' + err.message, 'error');
+      }
+    });
   },
 
   async inspectDossier(userId) {
@@ -2068,7 +2066,7 @@ async function submitChangePassword() {
   tip.textContent = '正在修改...';
   try {
     const res = await API.changePassword(oldPwd, newPwd);
-    alert(res.message || '密码修改成功！');
+    showToast(res.message || '密码修改成功！');
     closeChangePasswordModal();
   } catch (err) {
     tip.textContent = err.message;
@@ -2223,7 +2221,7 @@ async function submitEditDoc() {
       });
     }
     
-    alert('保存修改成功！');
+    showToast('保存修改成功！');
     closeEditDocModal();
     
     await loadUploadedDocs();
@@ -2238,7 +2236,7 @@ async function submitEditDoc() {
       }
     }
   } catch (err) {
-    alert(`保存失败: ${err.message}`);
+    showToast(`保存失败: ${err.message}`);
   }
 }
 

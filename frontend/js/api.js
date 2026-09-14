@@ -2,6 +2,80 @@
  * MedTrack API 客户端交互封装
  */
 
+
+// ==================== 全局 UI 交互组件 ====================
+window.showToast = function(message, type = 'success') {
+  let toastContainer = document.getElementById('toast-container');
+  if (!toastContainer) {
+    toastContainer = document.createElement('div');
+    toastContainer.id = 'toast-container';
+    toastContainer.style.cssText = 'position:fixed; top:30px; left:50%; transform:translateX(-50%); z-index:99999; display:flex; flex-direction:column; gap:10px; pointer-events:none;';
+    document.body.appendChild(toastContainer);
+  }
+  const toast = document.createElement('div');
+  const bg = type === 'success' ? '#10b981' : (type === 'error' ? '#ef4444' : '#3b82f6');
+  const icon = type === 'success' ? '✅' : (type === 'error' ? '❌' : 'ℹ️');
+  toast.style.cssText = `background:${bg}; color:white; padding:12px 24px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); display:flex; align-items:center; gap:8px; font-weight:500; font-size:0.95rem; opacity:0; transform:translateY(-20px); transition:all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55); pointer-events:auto; max-width: 90vw; word-break: break-word;`;
+  
+  // 简易处理换行符
+  const formattedMessage = message.replace(/\n/g, '<br>');
+  toast.innerHTML = `<span style="font-size:1.2rem;">${icon}</span><span style="line-height:1.4;">${formattedMessage}</span>`;
+  toastContainer.appendChild(toast);
+  
+  requestAnimationFrame(() => {
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateY(0)';
+  });
+  
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(-20px)';
+    setTimeout(() => toast.remove(), 300);
+  }, type === 'error' ? 5000 : 3000);
+};
+
+window.showConfirm = function(message, onConfirm) {
+  let overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.6); z-index:99999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(3px); opacity:0; transition:opacity 0.2s;';
+  
+  const modal = document.createElement('div');
+  modal.style.cssText = 'background:white; border-radius:12px; width:90%; max-width:400px; padding:24px; box-shadow:0 10px 25px rgba(0,0,0,0.2); transform:scale(0.95); transition:transform 0.2s;';
+  
+  const formattedMessage = message.replace(/\n/g, '<br>');
+  modal.innerHTML = `
+    <div style="font-size:1.1rem; font-weight:600; color:#0f172a; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+      <span style="font-size:1.4rem;">⚠️</span>
+      <span>操作确认</span>
+    </div>
+    <div style="color:#475569; font-size:0.95rem; margin-bottom:24px; line-height:1.5; word-break:break-word;">${formattedMessage}</div>
+    <div style="display:flex; justify-content:flex-end; gap:12px;">
+      <button class="btn btn-secondary" id="confirm-cancel">取消</button>
+      <button class="btn btn-primary" id="confirm-ok" style="background:#ef4444; border-color:#ef4444;">确认执行</button>
+    </div>
+  `;
+  
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  
+  requestAnimationFrame(() => {
+    overlay.style.opacity = '1';
+    modal.style.transform = 'scale(1)';
+  });
+  
+  const close = () => {
+    overlay.style.opacity = '0';
+    modal.style.transform = 'scale(0.95)';
+    setTimeout(() => overlay.remove(), 200);
+  };
+  
+  modal.querySelector('#confirm-cancel').onclick = close;
+  modal.querySelector('#confirm-ok').onclick = () => {
+    close();
+    onConfirm();
+  };
+};
+
+
 const API_BASE = '/api';
 
 const API = {
