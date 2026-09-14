@@ -283,43 +283,55 @@ async function onFileSelected(event) {
   previewBox.style.display = 'none';
 
   parsedDocsQueue = [];
-  let completed = 0;
+  
+  statusBox.innerHTML = `
+    <div style="display:flex; align-items:center; justify-content:center; gap:10px; color:#0284c7; padding:12px;">
+      <div style="width:20px; height:20px; border:3px solid #e0f2fe; border-top-color:#0284c7; border-radius:50%; animation:spin 1s linear infinite;"></div>
+      <span>正在提交 ${files.length} 张单据...</span>
+    </div>
+    <style>@keyframes spin { 0% { transform:rotate(0deg); } 100% { transform:rotate(360deg); } }</style>
+  `;
 
-  const updateStatus = () => {
-    statusBox.innerHTML = `
-      <div style="display:flex; align-items:center; justify-content:center; gap:10px; color:#0284c7; padding:12px;">
-        <div style="width:20px; height:20px; border:3px solid #e0f2fe; border-top-color:#0284c7; border-radius:50%; animation:spin 1s linear infinite;"></div>
-        <span>正在并发极速解析... 已完成 ${completed} / ${files.length} 张单据</span>
-      </div>
-      <style>@keyframes spin { 0% { transform:rotate(0deg); } 100% { transform:rotate(360deg); } }</style>
-    `;
-  };
-
-  updateStatus();
-
-  // Use Promise.all for concurrent uploading
-  const promises = files.map(async (f, idx) => {
-    try {
-      const res = await API.uploadAndParseDoc(f, docType);
-      // We push an object with idx to sort them later so they match upload order
-      parsedDocsQueue.push({ idx, res });
-    } catch (err) {
-      alert(`第 ${idx + 1} 张 (${f.name}) 解析失败: ${err.message}`);
-    } finally {
-      completed++;
-      updateStatus();
-    }
-  });
-
-  await Promise.all(promises);
-
-  // Restore order and unwrap
-  parsedDocsQueue.sort((a, b) => a.idx - b.idx);
-  parsedDocsQueue = parsedDocsQueue.map(item => item.res);
-
-  statusBox.style.display = 'none';
-  if (parsedDocsQueue.length > 0) {
-    renderParsedPreviewQueue();
+  try {
+    const res = await API.uploadAndParseBatch(files, docType);
+    const taskId = res.task_id;
+    
+    // Poll status
+    const pollInterval = setInterval(async () => {
+      try {
+        const statusData = await API.getBatchStatus(taskId);
+        
+        if (statusData.status === 'processing') {
+          statusBox.innerHTML = `
+            <div style="display:flex; align-items:center; justify-content:center; gap:10px; color:#0284c7; padding:12px;">
+              <div style="width:20px; height:20px; border:3px solid #e0f2fe; border-top-color:#0284c7; border-radius:50%; animation:spin 1s linear infinite;"></div>
+              <span>后台正逐一安全解析中以防限流... 已完成 ${statusData.completed} / ${statusData.total} 张单据</span>
+            </div>
+          `;
+        } else if (statusData.status === 'completed' || statusData.status === 'error') {
+          clearInterval(pollInterval);
+          statusBox.style.display = 'none';
+          
+          if (statusData.errors && statusData.errors.length > 0) {
+            alert(`部分解析出错:\n` + statusData.errors.join('\n'));
+          }
+          
+          if (statusData.results && statusData.results.length > 0) {
+            parsedDocsQueue = statusData.results;
+            renderParsedPreviewQueue();
+          } else if (statusData.status === 'error') {
+             statusBox.style.display = 'block';
+             statusBox.innerHTML = `<div style="color:#ef4444; padding:12px; text-align:center;">任务失败: ${statusData.errors.join(', ')}</div>`;
+          }
+        }
+      } catch (err) {
+        clearInterval(pollInterval);
+        statusBox.innerHTML = `<div style="color:#ef4444; padding:12px; text-align:center;">轮询任务状态失败: ${err.message}</div>`;
+      }
+    }, 2500); // 2.5s 轮询一次
+    
+  } catch (err) {
+    statusBox.innerHTML = `<div style="color:#ef4444; padding:12px; text-align:center;">批量提交失败: ${err.message}</div>`;
   }
 }
 
