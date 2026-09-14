@@ -275,6 +275,11 @@ async function onFileSelected(event) {
   }
   if (files.length === 0) return;
 
+  if (files.length > 10) {
+    alert("⚠️ 一次最多只能上传 10 张单据，请分批上传！");
+    files = files.slice(0, 10);
+  }
+
   const docType = document.getElementById('upload-doc-type').value;
   const statusBox = document.getElementById('upload-status');
   const previewBox = document.getElementById('upload-preview');
@@ -357,11 +362,6 @@ function renderParsedPreviewQueue() {
     const data = res.parsed_data || {};
     
     let contentHtml = '';
-    if (data._is_mock) {
-      contentHtml += `<div style="background:#fef2f2; color:#b91c1c; border:1px solid #f87171; padding:10px; margin-bottom:15px; border-radius:6px; font-weight:bold; font-size:0.9rem;">
-        ⚠️ AI 解析超时或失败，当前显示的是占位范例数据，请勿直接保存此数据。详细错误：${escapeHtml(data._error || '配置缺失或网络超时')}
-      </div>`;
-    }
     
     if (docType === 'lab') {
       const items = data.items || [];

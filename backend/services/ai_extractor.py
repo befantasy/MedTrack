@@ -122,12 +122,9 @@ class AIExtractorService:
         """
         api_key, base_url, model = self.get_config(db)
 
-        # 如果未配置 API Key，返回高质量模拟测试数据，并显式标注 _is_mock
+        # 如果未配置 API Key，直接抛出异常
         if not api_key or api_key == "your_api_key_here":
-            mock = self._get_mock_data(doc_type)
-            mock["_is_mock"] = True
-            mock["_mock_notice"] = "未配置大模型 API Key（AI_API_KEY），当前展示内置演示样例数据。请在【系统管理】或 VPS 环境变量中配置 API Key 以启用真实 AI 识别。"
-            return mock
+            raise ValueError("未配置大模型 API Key，请在【系统管理】或环境变量中配置。")
 
         prompt = self._get_prompt_for_type(doc_type)
         b64_image = base64.b64encode(file_bytes).decode('utf-8')
@@ -174,7 +171,7 @@ class AIExtractorService:
             async with httpx.AsyncClient(timeout=300.0) as client:
                 response = await client.post(endpoint, json=payload, headers=headers)
                 
-                # 兼容性容错：若中转站对 response_format 返回 400 不支持，自动移除后重试
+                # 兼容性容错：若中转站因 response_format 返回 400 不支持，自动移除后重试
                 if response.status_code == 400 and ("response_format" in response.text or "format" in response.text):
                     payload.pop("response_format", None)
                     response = await client.post(endpoint, json=payload, headers=headers)
@@ -187,12 +184,8 @@ class AIExtractorService:
                 parsed["_model_used"] = model
                 return parsed
         except Exception as e:
-            # 大模型调用出错时的保护：附带真实错误信息并降级返回模拟数据，保证页面不崩
-            mock = self._get_mock_data(doc_type)
-            mock["_is_mock"] = True
-            mock["_error"] = f"大模型请求异常 [{endpoint}]: {str(e)}"
-            mock["_mock_notice"] = f"大模型解析失败 ({str(e)})，已自动回退到模拟数据。"
-            return mock
+            # 抛出真实异常，由上传路由捕获并记录，不再返回占位数据
+            raise RuntimeError(f"大模型解析失败 [{endpoint}]: {str(e)}")
 
     def _clean_and_parse_json(self, text: str) -> Dict[str, Any]:
         """清除 markdown 标签并提取合法 JSON"""

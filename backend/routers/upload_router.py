@@ -40,6 +40,9 @@ def compress_image_for_ai(file_bytes: bytes) -> bytes:
         return file_bytes
 
 async def process_single_file(sem: asyncio.Semaphore, task_id: str, idx: int, f_info: dict, doc_type: str):
+    # 错峰起跑，每隔 1.5 秒放行一个任务，避免瞬间并发击穿 sub2api 代理服务器的 token 锁
+    await asyncio.sleep(idx * 1.5)
+    
     async with sem:
         db = SessionLocal()
         try:
@@ -101,6 +104,9 @@ async def upload_and_parse_batch(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    if len(files) > 10:
+        raise HTTPException(status_code=400, detail="一次最多支持上传 10 个文件，请分批上传。")
+
     allowed_extensions = {".jpg", ".jpeg", ".png", ".webp", ".pdf", ".bmp"}
     
     files_info = []
