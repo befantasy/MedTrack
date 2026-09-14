@@ -89,7 +89,7 @@ def create_lab_report(
         return report
     except Exception as e:
         logging.exception("Failed to create lab report")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=400, detail=f"内部保存失败: {str(e)}")
 
 @router.get("/reports/{id}", response_model=schemas.LabReportOut)
 def get_lab_report(

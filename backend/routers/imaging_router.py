@@ -26,14 +26,19 @@ def create_imaging_report(
     db: Session = Depends(get_db)
 ):
     """保存影像检查报告"""
-    report = models.ImagingReport(
-        **report_in.model_dump(),
-        user_id=current_user.id
-    )
-    db.add(report)
-    db.commit()
-    db.refresh(report)
-    return report
+    try:
+        report = models.ImagingReport(
+            **report_in.model_dump(),
+            user_id=current_user.id
+        )
+        db.add(report)
+        db.commit()
+        db.refresh(report)
+        return report
+    except Exception as e:
+        import logging
+        logging.exception("Failed to create imaging report")
+        raise HTTPException(status_code=400, detail=f"内部保存失败: {str(e)}")
 
 @router.put("/reports/{id}", response_model=schemas.ImagingReportOut)
 def update_imaging_report(

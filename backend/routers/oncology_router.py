@@ -115,11 +115,16 @@ def get_pathologies(current_user: models.User = Depends(get_current_user), db: S
 
 @router.post("/pathologies", response_model=schemas.PathologyReportOut)
 def create_pathology(data_in: schemas.PathologyReportCreate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    item = models.PathologyReport(**data_in.model_dump(), user_id=current_user.id)
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    return item
+    try:
+        item = models.PathologyReport(**data_in.model_dump(), user_id=current_user.id)
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+        return item
+    except Exception as e:
+        import logging
+        logging.exception("Failed to create pathology report")
+        raise HTTPException(status_code=400, detail=f"内部保存失败: {str(e)}")
 
 @router.put("/pathologies/{id}", response_model=schemas.PathologyReportOut)
 def update_pathology(
