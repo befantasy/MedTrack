@@ -82,7 +82,7 @@ const TimelineModule = {
       html += `
         <div class="timeline-item">
           <div class="timeline-dot ${cfg.dotClass}"></div>
-          <div class="timeline-content" style="position: relative;">
+          <div class="timeline-content">
             <div class="timeline-header">
               <div>
                 <span style="margin-right:6px;">${cfg.icon}</span>
@@ -100,12 +100,7 @@ const TimelineModule = {
             
             ${extraHtml}
 
-            ${['lab', 'imaging', 'pathology'].includes(item.event_type) ? `
-              <button class="btn btn-secondary btn-sm" style="position: absolute; top: 16px; right: 16px; font-size: 0.8rem; padding: 4px 8px; color: #ef4444; border-color: #fee2e2; background: #fef2f2;" onclick="deleteTimelineEvent('${item.event_type}', ${item.id.split('_')[1]})">
-                🗑️ 删除
-              </button>
-            ` : ''}
-          </div>
+            </div>
         </div>
       `;
     });
