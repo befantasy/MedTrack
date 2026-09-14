@@ -73,7 +73,9 @@ async def process_single_file(sem: asyncio.Semaphore, task_id: str, idx: int, f_
                 "original_index": idx
             })
         except Exception as e:
-            batch_tasks[task_id]["errors"].append(f"文件 {filename} 解析失败: {str(e)}")
+            import logging
+            logging.error(f"File {filename} parse error: {str(e)}")
+            batch_tasks[task_id]["errors"].append(f"文件 {filename} 解析失败")
         finally:
             batch_tasks[task_id]["completed"] += 1
             db.close()
@@ -92,8 +94,10 @@ async def process_batch_task(task_id: str, files_info: List[dict], doc_type: str
         await asyncio.gather(*tasks)
         batch_tasks[task_id]["status"] = "completed"
     except Exception as e:
+        import logging
+        logging.error(f"Batch task fatal error: {str(e)}")
         batch_tasks[task_id]["status"] = "error"
-        batch_tasks[task_id]["errors"].append(f"批量任务严重异常: {str(e)}")
+        batch_tasks[task_id]["errors"].append(f"批量解析任务异常中止")
 
 
 @router.post("/parse-batch")
