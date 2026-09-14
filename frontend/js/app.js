@@ -6,6 +6,20 @@ let currentProfile = {};
 
 document.addEventListener('DOMContentLoaded', async () => {
   initAuthUI();
+
+  // 绑定登录输入框回车快捷键 (支持任意输入框直接回车登录)
+  ['auth-username', 'auth-password'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handleLogin();
+        }
+      });
+    }
+  });
+
   if (API.getToken()) {
     await initApp();
   }

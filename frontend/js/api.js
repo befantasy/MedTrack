@@ -45,9 +45,15 @@ const API = {
 
     try {
       const response = await fetch(url, options);
-      
+      const data = await response.json().catch(() => ({}));
+
       if (response.status === 401) {
-        // 未认证或凭证失效
+        // 如果是登录或注册请求，直接展示服务端返回的明确原因（如“用户名或密码错误”），绝不重载页面
+        if (endpoint.includes('/auth/login') || endpoint.includes('/auth/register')) {
+          throw new Error(data.detail || '用户名或密码错误');
+        }
+
+        // 其他受保护接口返回 401，才说明已持有的 Token 凭证失效
         this.clearAuth();
         if (!window.location.pathname.includes('share.html')) {
           window.location.reload();
@@ -55,7 +61,6 @@ const API = {
         throw new Error('登录凭据已过期，请重新登录');
       }
 
-      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(data.detail || data.message || `请求失败 (${response.status})`);
       }

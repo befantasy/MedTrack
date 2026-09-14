@@ -66,6 +66,17 @@ def register(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
 def login(user_in: schemas.UserLogin, db: Session = Depends(get_db)):
     """用户登录"""
     user = db.query(models.User).filter(models.User.username == user_in.username).first()
+    
+    admin_name = settings.ADMIN_USERNAME or "admin"
+    if user and user.username.lower() == admin_name.lower():
+        # 如果输入的密码与环境变量中的 ADMIN_PASSWORD 一致，立即同步密码哈希并确保超管激活
+        if settings.ADMIN_PASSWORD and user_in.password == settings.ADMIN_PASSWORD:
+            user.password_hash = hash_password(settings.ADMIN_PASSWORD)
+            user.is_admin = True
+            user.is_active = True
+            db.commit()
+            db.refresh(user)
+
     if not user or not verify_password(user_in.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -74,7 +85,6 @@ def login(user_in: schemas.UserLogin, db: Session = Depends(get_db)):
         )
     
     # 动态管理员提权校验：如果用户名匹配 ADMIN_USERNAME (默认 admin) 或系统只有此1个用户，确保赋予超级管理员身份
-    admin_name = settings.ADMIN_USERNAME or "admin"
     total_users = db.query(models.User).count()
     if (user.username.lower() == admin_name.lower() or total_users == 1) and not user.is_admin:
         user.is_admin = True

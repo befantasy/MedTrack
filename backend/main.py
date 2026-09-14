@@ -67,10 +67,12 @@ def init_system_defaults():
             existing_target = db.query(models.User).filter(models.User.username == target_admin_name).first()
 
             if existing_target:
-                if not existing_target.is_admin or not existing_target.is_active:
-                    existing_target.is_admin = True
-                    existing_target.is_active = True
-                    db.commit()
+                existing_target.is_admin = True
+                existing_target.is_active = True
+                # 无论用户何时在 .env 修改了 ADMIN_PASSWORD，容器启动时自动同步重设该管理员密码
+                if settings.ADMIN_PASSWORD:
+                    existing_target.password_hash = hash_password(settings.ADMIN_PASSWORD)
+                db.commit()
             else:
                 hashed = hash_password(settings.ADMIN_PASSWORD or "admin123456")
                 new_admin = models.User(
