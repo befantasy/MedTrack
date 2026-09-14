@@ -646,6 +646,25 @@ async function deleteTherapyItem(id) {
   }
 }
 
+async function deleteTimelineEvent(type, id) {
+  const typeNameMap = { lab: '化验单', imaging: '影像报告', pathology: '病理报告' };
+  if (!confirm(`确认删除这份${typeNameMap[type] || '记录'}吗？删除后将无法恢复，且图表中的指标点也将被一并移除。`)) return;
+  try {
+    if (type === 'lab') await API.deleteLabReport(id);
+    else if (type === 'imaging') await API.deleteImagingReport(id);
+    else if (type === 'pathology') await API.deletePathology(id);
+    
+    alert('删除成功！');
+    await TimelineModule.load();
+    if (ChartsModule && typeof ChartsModule.load === 'function') {
+       ChartsModule.load(); // 刷新图表
+    }
+  } catch (err) {
+    alert('删除失败: ' + err.message);
+  }
+}
+window.deleteTimelineEvent = deleteTimelineEvent;
+
 // ==================== 就诊病历汇总与分享 ====================
 async function loadConsultationReport() {
   const container = document.getElementById('report-container');
