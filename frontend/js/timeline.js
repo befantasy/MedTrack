@@ -123,32 +123,48 @@ function formatSummaryWithHighlights(text) {
   if (!text) return '';
   let safe = escapeHtml(text);
 
-  // 1. 如果存在明确的【异常指标】...。或【异常】...。前缀块，将其高亮为柔和红底加粗红字
-  safe = safe.replace(/(【异常指标】[\s\S]*?(?:。|$)|【异常】[\s\S]*?(?:。|$))/g, (match) => {
-    return `<span style="color:#dc2626; font-weight:600; background:#fef2f2; padding:3px 7px; border-radius:4px; display:inline-block; margin:2px 0; border:1px solid #fecaca;">${match}</span>`;
-  });
+  // 1. 提取并分离建议部分 (如果存在)
+  let suggestion = null;
+  const sugRegex = /(?:【建议】|【就医与随访建议】|【医学建议】|建议[:：]|医学建议[:：])\s*([\s\S]+)$/;
+  const sugMatch = safe.match(sugRegex);
+  if (sugMatch) {
+    suggestion = sugMatch[1].trim();
+    safe = safe.slice(0, sugMatch.index).trim();
+    safe = safe.replace(/[；;。，, ]+$/, '');
+  }
 
-  // 2. 对包含异常关键词的分句进行标红高亮
-  const abnormalKeywords = /(↑|↓|偏高|偏低|轻度偏高|明显偏高|异常|阳性|强阳性|弱阳性|突变|超出参考|转移|进展|恶性)/;
-  const normalExclusions = /(均在正常|未见异常|正常参考|正常范围|阴性\(-?\))/;
+  // 2. 识别并高亮异常指标部分 (整体标红加粗，避免切碎数值及小数位)
+  const abnormalBlockRegex = /(【异常指标】|异常指标[:：])\s*([\s\S]*?)(?=(?:[;；。]\s*(?:其余|各项|未见)|$|[;；。]\s*【))/;
+  if (abnormalBlockRegex.test(safe)) {
+    safe = safe.replace(abnormalBlockRegex, (match, prefix, content) => {
+      return `<strong style="color:#dc2626;">${prefix} </strong><span style="color:#dc2626; font-weight:600;">${content}</span>`;
+    });
+  } else {
+    // 兼容没有 "异常指标:" 显式前缀的自由文本或旧数据
+    const abnormalKeywords = /(↑|↓|偏高|偏低|轻度偏高|明显偏高|异常|阳性|强阳性|弱阳性|突变|超出参考|转移|进展|恶性)/;
+    const normalExclusions = /(均在正常|未见异常|正常参考|正常范围|阴性\(-?\))/;
 
-  const segments = safe.split(/(，|；|。|,|;|\.)/);
-  let result = '';
-  for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i];
-    if (/^[，；。;,]$/.test(seg)) {
-      result += seg;
-      continue;
+    // 避免在数字小数位切分
+    const segments = safe.split(/([；;。]|\b(?<!\d)[,，](?!\d))/);
+    let newSegs = [];
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i];
+      if (abnormalKeywords.test(seg) && !normalExclusions.test(seg)) {
+        newSegs.push(`<span style="color:#dc2626; font-weight:600;">${seg}</span>`);
+      } else {
+        newSegs.push(seg);
+      }
     }
-    if (seg.includes('<span') || seg.includes('</span>')) {
-      result += seg;
-      continue;
-    }
-    if (abnormalKeywords.test(seg) && !normalExclusions.test(seg)) {
-      result += `<span style="color:#dc2626; font-weight:600;">${seg}</span>`;
-    } else {
-      result += seg;
-    }
+    safe = newSegs.join('');
+  }
+
+  // 3. 格式化客观总结标题
+  safe = safe.replace(/【客观总结】[:：]?/g, '<strong style="color:#0f172a;">【客观总结】</strong> ');
+  safe = safe.replace(/客观总结[:：]/g, '<strong style="color:#0f172a;">客观总结: </strong>');
+
+  let result = `<div>${safe}</div>`;
+  if (suggestion) {
+    result += `<div style="margin-top:6px; font-size:0.86rem; color:#0369a1; background:#f0f9ff; padding:3px 8px; border-radius:4px; border-left:3px solid #0284c7; display:block; width:fit-content; max-width:100%;">💡 <strong>建议:</strong> ${suggestion}</div>`;
   }
 
   return result;

@@ -341,20 +341,63 @@ async function onFileSelected(event) {
   }
 }
 
+function getStatusPillStyle(status) {
+  status = (status || '').toUpperCase();
+  if (status === 'HIGH' || status === '偏高') {
+    return 'background:#fee2e2; color:#ef4444; border:1px solid #fecaca;';
+  } else if (status === 'LOW' || status === '偏低') {
+    return 'background:#dbeafe; color:#2563eb; border:1px solid #bfdbfe;';
+  } else if (status === 'ABNORMAL' || status === '异常') {
+    return 'background:#fee2e2; color:#ef4444; border:1px solid #fecaca;';
+  } else {
+    return 'background:#dcfce7; color:#16a34a; border:1px solid #bbf7d0;';
+  }
+}
+window.getStatusPillStyle = getStatusPillStyle;
+
+function updateStatusPill(selectEl) {
+  if (!selectEl) return;
+  const style = getStatusPillStyle(selectEl.value);
+  const parts = style.split(';');
+  parts.forEach(p => {
+    const [k, v] = p.split(':');
+    if (k && v) {
+      if (k.trim() === 'background') selectEl.style.background = v.trim();
+      if (k.trim() === 'color') selectEl.style.color = v.trim();
+      if (k.trim() === 'border') selectEl.style.border = v.trim();
+    }
+  });
+}
+window.updateStatusPill = updateStatusPill;
+
+function getStatusBadge(status) {
+  status = (status || '').toUpperCase();
+  if (status === 'HIGH' || status === '偏高') {
+    return `<span class="badge" style="background:#fee2e2; color:#ef4444; border:1px solid #fecaca; border-radius:12px; padding:2px 9px; font-size:0.75rem; font-weight:600; display:inline-flex; align-items:center; gap:2px;">偏高 ↑</span>`;
+  } else if (status === 'LOW' || status === '偏低') {
+    return `<span class="badge" style="background:#dbeafe; color:#2563eb; border:1px solid #bfdbfe; border-radius:12px; padding:2px 9px; font-size:0.75rem; font-weight:600; display:inline-flex; align-items:center; gap:2px;">偏低 ↓</span>`;
+  } else if (status === 'ABNORMAL' || status === '异常') {
+    return `<span class="badge" style="background:#fee2e2; color:#ef4444; border:1px solid #fecaca; border-radius:12px; padding:2px 9px; font-size:0.75rem; font-weight:600; display:inline-flex; align-items:center; gap:2px;">异常</span>`;
+  } else {
+    return `<span class="badge" style="background:#dcfce7; color:#16a34a; border:1px solid #bbf7d0; border-radius:12px; padding:2px 9px; font-size:0.75rem; font-weight:600; display:inline-flex; align-items:center; gap:2px;">正常</span>`;
+  }
+}
+window.getStatusBadge = getStatusBadge;
+
 function renderParsedPreviewQueue() {
   const box = document.getElementById('upload-preview');
   box.style.display = 'block';
 
   let html = `
-    <div class="card" style="border:1px solid #0284c7; background:#ffffff;">
-      <div class="card-title" style="color:#0284c7; display:flex; justify-content:space-between; align-items:center;">
-        <span>📋 待入库清单 (${parsedDocsQueue.length}份单据)</span>
-        <button class="btn btn-primary" onclick="confirmSaveAllParsedDocs()">💾 一键全部存入病历档案</button>
+    <div class="card" style="border:2px solid #bae6fd; background:#ffffff; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
+      <div class="card-title" style="color:#0284c7; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <span style="display:flex; align-items:center; gap:6px;">📋 <strong>AI 结构化识别预览结果</strong> <span style="font-size:0.85rem; color:#64748b; font-weight:normal;">(${parsedDocsQueue.length} 份待入库单据)</span></span>
+        <button class="btn btn-primary" onclick="confirmSaveAllParsedDocs()">💾 确认无误，存入病历档案</button>
       </div>
-      <div style="color:#64748b; font-size:0.85rem; margin-bottom:10px;">
-        💡 提示：您可以展开下列卡片核对 AI 提取的数据，直接在表格内修改纠错后再存入。
+      <div style="color:#64748b; font-size:0.85rem; margin-bottom:12px;">
+        💡 提示：您可以核对 AI 提取的数据与状态，直接在表格内修改纠错后再存入档案。
       </div>
-      <div style="display:flex; flex-direction:column; gap:10px;">
+      <div style="display:flex; flex-direction:column; gap:14px;">
   `;
 
   parsedDocsQueue.forEach((res, qIndex) => {
@@ -366,27 +409,60 @@ function renderParsedPreviewQueue() {
     if (docType === 'lab') {
       const items = data.items || [];
       let rows = items.map((it, itemIdx) => {
+        const isAbnormal = it.status && it.status !== 'NORMAL';
+        const valWeight = isAbnormal ? 'font-weight:600; color:#ef4444;' : '';
         return `
-          <tr>
+          <tr style="${isAbnormal ? 'background-color:#fff1f2;' : ''}">
             <td><input class="form-control form-control-sm" id="edit-lab-${qIndex}-${itemIdx}-name" value="${escapeHtml(it.item_name || it.name || '')}"></td>
             <td><input class="form-control form-control-sm" id="edit-lab-${qIndex}-${itemIdx}-code" value="${escapeHtml(it.item_code || it.code || '')}"></td>
-            <td><input class="form-control form-control-sm" id="edit-lab-${qIndex}-${itemIdx}-value" value="${it.value !== null && it.value !== undefined ? it.value : (it.value_text || '')}"></td>
+            <td><input class="form-control form-control-sm" id="edit-lab-${qIndex}-${itemIdx}-value" style="${valWeight}" value="${it.value !== null && it.value !== undefined ? it.value : (it.value_text || '')}"></td>
             <td><input class="form-control form-control-sm" id="edit-lab-${qIndex}-${itemIdx}-unit" value="${escapeHtml(it.unit || '')}"></td>
             <td><input class="form-control form-control-sm" id="edit-lab-${qIndex}-${itemIdx}-range" value="${escapeHtml(it.ref_range || '')}"></td>
+            <td style="text-align:center;">
+              <select class="form-select form-select-sm status-select" id="edit-lab-${qIndex}-${itemIdx}-status" 
+                      onchange="updateStatusPill(this)"
+                      style="width:100%; max-width:88px; border-radius:12px; font-weight:600; font-size:0.78rem; text-align:center; padding:2px 6px; cursor:pointer; margin:0 auto; ${getStatusPillStyle(it.status)}">
+                <option value="NORMAL" ${it.status === 'NORMAL' ? 'selected' : ''}>正常</option>
+                <option value="HIGH" ${it.status === 'HIGH' ? 'selected' : ''}>偏高 ↑</option>
+                <option value="LOW" ${it.status === 'LOW' ? 'selected' : ''}>偏低 ↓</option>
+                <option value="ABNORMAL" ${it.status === 'ABNORMAL' ? 'selected' : ''}>异常</option>
+              </select>
+            </td>
           </tr>
         `;
       }).join('');
       
       contentHtml = `
-        <div style="display:flex; gap:10px; margin-bottom:10px;">
-          <input class="form-control form-control-sm" id="edit-lab-${qIndex}-type" value="${escapeHtml(data.report_type || '化验单')}" placeholder="类型">
-          <input type="date" class="form-control form-control-sm" id="edit-lab-${qIndex}-date" value="${escapeHtml(data.report_date || '')}">
-          <input class="form-control form-control-sm" id="edit-lab-${qIndex}-hospital" value="${escapeHtml(data.hospital || '')}" placeholder="医院">
+        <div style="display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+          <div style="flex:2; min-width:180px;">
+            <label style="font-size:0.8rem; color:#64748b; display:block; margin-bottom:2px;">化验单类型</label>
+            <input class="form-control form-control-sm" id="edit-lab-${qIndex}-type" value="${escapeHtml(data.report_type || '检验化验单')}" placeholder="类型">
+          </div>
+          <div style="flex:1; min-width:140px;">
+            <label style="font-size:0.8rem; color:#64748b; display:block; margin-bottom:2px;">采样日期</label>
+            <input type="date" class="form-control form-control-sm" id="edit-lab-${qIndex}-date" value="${escapeHtml(data.report_date || '')}">
+          </div>
+          <div style="flex:2; min-width:180px;">
+            <label style="font-size:0.8rem; color:#64748b; display:block; margin-bottom:2px;">医院机构</label>
+            <input class="form-control form-control-sm" id="edit-lab-${qIndex}-hospital" value="${escapeHtml(data.hospital || '')}" placeholder="医院">
+          </div>
         </div>
+
+        <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:6px; padding:10px 14px; margin-bottom:14px; color:#0369a1; font-size:0.9rem; line-height:1.6;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+            <div style="flex:1;">
+              💡 <strong>AI 总结:</strong> <span>${formatSummaryWithHighlights(data.ai_summary || '各项检验指标均在正常参考范围内，未见异常波动。')}</span>
+            </div>
+          </div>
+          <input type="hidden" id="edit-lab-${qIndex}-summary" value="${escapeHtml(data.ai_summary || '')}">
+        </div>
+
         <div class="table-responsive">
-          <table class="med-table">
+          <table class="med-table" style="width:100%;">
             <thead>
-              <tr><th>项目名称</th><th>代码</th><th>测定值</th><th>单位</th><th>参考区间</th></tr>
+              <tr style="background:#f8fafc; color:#64748b;">
+                <th>项目名称</th><th>代码</th><th style="width:110px;">测定值</th><th style="width:90px;">单位</th><th style="width:120px;">参考区间</th><th style="width:100px; text-align:center;">状态</th>
+              </tr>
             </thead>
             <tbody>${rows}</tbody>
           </table>
@@ -399,6 +475,11 @@ function renderParsedPreviewQueue() {
           <input class="form-control form-control-sm" id="edit-img-${qIndex}-part" value="${escapeHtml(data.body_part || '')}" placeholder="部位">
           <input type="date" class="form-control form-control-sm" id="edit-img-${qIndex}-date" value="${escapeHtml(data.report_date || '')}">
         </div>
+        ${(data.impression || data.findings) ? `
+        <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:6px; padding:10px 14px; margin-bottom:12px; color:#0369a1; font-size:0.9rem; line-height:1.6;">
+          💡 <strong>AI 诊断结论:</strong> <span>${formatSummaryWithHighlights(data.impression || data.findings)}</span>
+        </div>
+        ` : ''}
         <div style="margin-bottom:10px;">
           <label class="form-label" style="font-size:0.85rem;">检查所见</label>
           <textarea class="form-control" id="edit-img-${qIndex}-findings" rows="3">${escapeHtml(data.findings || '')}</textarea>
@@ -414,6 +495,11 @@ function renderParsedPreviewQueue() {
           <input class="form-control form-control-sm" id="edit-path-${qIndex}-type" value="${escapeHtml(data.sample_type || '')}" placeholder="标本类型">
           <input type="date" class="form-control form-control-sm" id="edit-path-${qIndex}-date" value="${escapeHtml(data.report_date || '')}">
         </div>
+        ${(data.histological_diagnosis) ? `
+        <div style="background:#faf5ff; border:1px solid #e9d5ff; border-radius:6px; padding:10px 14px; margin-bottom:12px; color:#6b21a8; font-size:0.9rem; line-height:1.6;">
+          🔬 <strong>AI 病理诊断:</strong> <span>${formatSummaryWithHighlights(data.histological_diagnosis)}</span>
+        </div>
+        ` : ''}
         <div style="margin-bottom:10px;">
           <label class="form-label" style="font-size:0.85rem;">病理诊断</label>
           <textarea class="form-control" id="edit-path-${qIndex}-diag" rows="3">${escapeHtml(data.histological_diagnosis || '')}</textarea>
@@ -425,8 +511,9 @@ function renderParsedPreviewQueue() {
 
     html += `
       <div style="border:1px solid #e2e8f0; border-radius:6px; background:#f8fafc;">
-        <div style="padding:10px 14px; font-weight:600; font-size:0.95rem; background:#f1f5f9; border-bottom:1px solid #e2e8f0;">
-          📄 单据 ${qIndex + 1}: ${docType.toUpperCase()}
+        <div style="padding:10px 14px; font-weight:600; font-size:0.95rem; background:#f1f5f9; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+          <span>📄 单据 ${qIndex + 1}: ${docType === 'lab' ? '🧪 检验化验单' : (docType === 'imaging' ? '🩻 影像报告' : '🔬 病理报告')}</span>
+          <span style="font-size:0.8rem; color:#64748b; font-weight:normal;">${escapeHtml(res.filename || '')}</span>
         </div>
         <div style="padding:14px;">
           ${contentHtml}
@@ -454,24 +541,30 @@ async function confirmSaveAllParsedDocs() {
     
     try {
       if (docType === 'lab') {
-        const typeVal = document.getElementById(`edit-lab-${qIndex}-type`)?.value || '化验单';
-        const dateVal = document.getElementById(`edit-lab-${qIndex}-date`)?.value || new Date().toISOString().slice(0, 10);
-        const hospVal = document.getElementById(`edit-lab-${qIndex}-hospital`)?.value || '';
+        const typeVal = document.getElementById(`edit-lab-${qIndex}-type`)?.value || data.report_type || '检验化验单';
+        const dateVal = document.getElementById(`edit-lab-${qIndex}-date`)?.value || data.report_date || new Date().toISOString().slice(0, 10);
+        const hospVal = document.getElementById(`edit-lab-${qIndex}-hospital`)?.value || data.hospital || '';
+        const summaryVal = document.getElementById(`edit-lab-${qIndex}-summary`)?.value || data.ai_summary || '';
         
         const items = [];
-        (data.items || []).forEach((_, itemIdx) => {
-          const vCode = document.getElementById(`edit-lab-${qIndex}-${itemIdx}-code`)?.value || 'OTHER';
+        (data.items || []).forEach((it, itemIdx) => {
+          const vCode = document.getElementById(`edit-lab-${qIndex}-${itemIdx}-code`)?.value || it.item_code || 'OTHER';
           let vValStr = document.getElementById(`edit-lab-${qIndex}-${itemIdx}-value`)?.value || '';
+          const statusVal = document.getElementById(`edit-lab-${qIndex}-${itemIdx}-status`)?.value || it.status || 'NORMAL';
           
           let parsedVal = parseFloat(vValStr.replace(/[^\d.-]/g, ''));
           
           items.push({
-            item_name: document.getElementById(`edit-lab-${qIndex}-${itemIdx}-name`)?.value || '未知',
+            item_name: document.getElementById(`edit-lab-${qIndex}-${itemIdx}-name`)?.value || it.item_name || '未知',
             item_code: vCode.toUpperCase().trim(),
             value: isNaN(parsedVal) ? null : parsedVal,
             value_text: vValStr,
-            unit: document.getElementById(`edit-lab-${qIndex}-${itemIdx}-unit`)?.value || '',
-            ref_range: document.getElementById(`edit-lab-${qIndex}-${itemIdx}-range`)?.value || '',
+            unit: document.getElementById(`edit-lab-${qIndex}-${itemIdx}-unit`)?.value || it.unit || '',
+            ref_range: document.getElementById(`edit-lab-${qIndex}-${itemIdx}-range`)?.value || it.ref_range || '',
+            ref_min: it.ref_min,
+            ref_max: it.ref_max,
+            status: statusVal,
+            category: it.category || 'other',
             test_date: dateVal
           });
         });
@@ -481,7 +574,7 @@ async function confirmSaveAllParsedDocs() {
           report_date: dateVal,
           hospital: hospVal,
           raw_file_url: res.raw_file_url || '',
-          ai_summary: data.ai_summary || '',
+          ai_summary: summaryVal,
           items: items
         });
       } else if (docType === 'imaging') {
@@ -763,25 +856,21 @@ function showDocHoverPopover(event, docId, isClick = false) {
         const isAbnormal = it.status === 'HIGH' || it.status === 'LOW' || it.status === 'ABNORMAL';
         let valColor = '#0f172a';
         let arrow = '';
-        let statusBadge = '';
         let rowBg = 'transparent';
         let nameStyle = 'color:#334155; font-weight:500;';
 
         if (it.status === 'HIGH') {
           valColor = '#dc2626';
           arrow = ' ↑';
-          statusBadge = `<span style="background:#fee2e2; color:#dc2626; font-size:0.75rem; padding:1px 5px; border-radius:3px; margin-left:4px; font-weight:600;">↑偏高</span>`;
           rowBg = '#fef2f2';
           nameStyle = 'color:#dc2626; font-weight:600;';
         } else if (it.status === 'LOW') {
-          valColor = '#dc2626';
+          valColor = '#2563eb';
           arrow = ' ↓';
-          statusBadge = `<span style="background:#fee2e2; color:#dc2626; font-size:0.75rem; padding:1px 5px; border-radius:3px; margin-left:4px; font-weight:600;">↓偏低</span>`;
-          rowBg = '#fef2f2';
-          nameStyle = 'color:#dc2626; font-weight:600;';
+          rowBg = '#eff6ff';
+          nameStyle = 'color:#2563eb; font-weight:600;';
         } else if (it.status === 'ABNORMAL') {
           valColor = '#dc2626';
-          statusBadge = `<span style="background:#fee2e2; color:#dc2626; font-size:0.75rem; padding:1px 5px; border-radius:3px; margin-left:4px; font-weight:600;">异常</span>`;
           rowBg = '#fef2f2';
           nameStyle = 'color:#dc2626; font-weight:600;';
         }
@@ -789,23 +878,34 @@ function showDocHoverPopover(event, docId, isClick = false) {
         const valDisp = it.value !== null && it.value !== undefined ? it.value : (it.value_text || '-');
         return `
           <tr style="border-bottom:1px solid #f1f5f9; background:${rowBg};">
-            <td style="padding:7px 10px; ${nameStyle}">${escapeHtml(it.name || it.code)}${statusBadge}</td>
+            <td style="padding:7px 10px; ${nameStyle}">${escapeHtml(it.name || it.item_name || it.code)}</td>
+            <td style="padding:7px 10px; color:#64748b; font-size:0.8rem;">${escapeHtml(it.code || it.item_code || '')}</td>
             <td style="padding:7px 10px; color:${valColor}; font-weight:700; text-align:right;">${valDisp}${arrow}</td>
-            <td style="padding:7px 10px; color:${isAbnormal ? '#dc2626' : '#64748b'}; font-size:0.8rem;">${escapeHtml(it.unit || '')}</td>
+            <td style="padding:7px 10px; color:${isAbnormal ? valColor : '#64748b'}; font-size:0.8rem;">${escapeHtml(it.unit || '')}</td>
             <td style="padding:7px 10px; color:${isAbnormal ? '#991b1b' : '#94a3b8'}; font-size:0.8rem;">${escapeHtml(it.ref_range || '')}</td>
+            <td style="padding:7px 10px; text-align:center;">${getStatusBadge(it.status)}</td>
           </tr>
         `;
       }).join('');
 
+      const summaryHtml = doc.summary ? `
+        <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:6px; padding:9px 12px; margin:10px 14px 8px 14px; color:#0369a1; font-size:0.86rem; line-height:1.5;">
+          💡 <strong>AI 综合解读:</strong> <span>${formatSummaryWithHighlights(doc.summary)}</span>
+        </div>
+      ` : '';
+
       bodyHtml = `
-        <div style="overflow-y:auto; -webkit-overflow-scrolling:touch; max-height:${mobile ? '58vh' : '320px'}; padding:0;">
+        ${summaryHtml}
+        <div style="overflow-y:auto; -webkit-overflow-scrolling:touch; max-height:${mobile ? '55vh' : '320px'}; padding:0;">
           <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
             <thead>
               <tr style="background:#f8fafc; color:#64748b; font-size:0.78rem; border-bottom:1px solid #e2e8f0; position:sticky; top:0; z-index:2;">
                 <th style="padding:8px 10px; text-align:left;">指标名称</th>
+                <th style="padding:8px 10px; text-align:left;">代码</th>
                 <th style="padding:8px 10px; text-align:right;">测定值</th>
                 <th style="padding:8px 10px; text-align:left;">单位</th>
                 <th style="padding:8px 10px; text-align:left;">参考区间</th>
+                <th style="padding:8px 10px; text-align:center;">状态</th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -993,37 +1093,53 @@ window.handleDocDetailClick = handleDocDetailClick;
 window.handleDocDetailMouseEnter = handleDocDetailMouseEnter;
 window.handleDocDetailMouseLeave = handleDocDetailMouseLeave;
 
-// 异常摘要标红高亮辅助函数
+// 异常摘要标红高亮与结构化展示辅助函数 (客观陈述 + 异常指标标红 + 建议)
 function formatSummaryWithHighlights(text) {
   if (!text) return '';
   let safe = escapeHtml(text);
 
-  // 1. 如果存在明确的【异常指标】...。或【异常】...。前缀块，将其高亮为柔和红底加粗红字
-  safe = safe.replace(/(【异常指标】[\s\S]*?(?:。|$)|【异常】[\s\S]*?(?:。|$))/g, (match) => {
-    return `<span style="color:#dc2626; font-weight:600; background:#fef2f2; padding:3px 7px; border-radius:4px; display:inline-block; margin:2px 0; border:1px solid #fecaca;">${match}</span>`;
-  });
+  // 1. 提取并分离建议部分 (如果存在)
+  let suggestion = null;
+  const sugRegex = /(?:【建议】|【就医与随访建议】|【医学建议】|建议[:：]|医学建议[:：])\s*([\s\S]+)$/;
+  const sugMatch = safe.match(sugRegex);
+  if (sugMatch) {
+    suggestion = sugMatch[1].trim();
+    safe = safe.slice(0, sugMatch.index).trim();
+    safe = safe.replace(/[；;。，, ]+$/, '');
+  }
 
-  // 2. 对包含异常关键词的分句进行标红高亮
-  const abnormalKeywords = /(↑|↓|偏高|偏低|轻度偏高|明显偏高|异常|阳性|强阳性|弱阳性|突变|超出参考|转移|进展|恶性)/;
-  const normalExclusions = /(均在正常|未见异常|正常参考|正常范围|阴性\(-?\))/;
+  // 2. 识别并高亮异常指标部分 (整体标红加粗，避免切碎数值及小数位)
+  const abnormalBlockRegex = /(【异常指标】|异常指标[:：])\s*([\s\S]*?)(?=(?:[;；。]\s*(?:其余|各项|未见)|$|[;；。]\s*【))/;
+  if (abnormalBlockRegex.test(safe)) {
+    safe = safe.replace(abnormalBlockRegex, (match, prefix, content) => {
+      return `<strong style="color:#dc2626;">${prefix} </strong><span style="color:#dc2626; font-weight:600;">${content}</span>`;
+    });
+  } else {
+    // 兼容没有 "异常指标:" 显式前缀的自由文本或旧数据
+    const abnormalKeywords = /(↑|↓|偏高|偏低|轻度偏高|明显偏高|异常|阳性|强阳性|弱阳性|突变|超出参考|转移|进展|恶性)/;
+    const normalExclusions = /(均在正常|未见异常|正常参考|正常范围|阴性\(-?\))/;
 
-  const segments = safe.split(/(，|；|。|,|;|\.)/);
-  let result = '';
-  for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i];
-    if (/^[，；。;,]$/.test(seg)) {
-      result += seg;
-      continue;
+    // 避免在数字小数位切分
+    const segments = safe.split(/([；;。]|\b(?<!\d)[,，](?!\d))/);
+    let newSegs = [];
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i];
+      if (abnormalKeywords.test(seg) && !normalExclusions.test(seg)) {
+        newSegs.push(`<span style="color:#dc2626; font-weight:600;">${seg}</span>`);
+      } else {
+        newSegs.push(seg);
+      }
     }
-    if (seg.includes('<span') || seg.includes('</span>')) {
-      result += seg;
-      continue;
-    }
-    if (abnormalKeywords.test(seg) && !normalExclusions.test(seg)) {
-      result += `<span style="color:#dc2626; font-weight:600;">${seg}</span>`;
-    } else {
-      result += seg;
-    }
+    safe = newSegs.join('');
+  }
+
+  // 3. 格式化客观总结标题
+  safe = safe.replace(/【客观总结】[:：]?/g, '<strong style="color:#0f172a;">【客观总结】</strong> ');
+  safe = safe.replace(/客观总结[:：]/g, '<strong style="color:#0f172a;">客观总结: </strong>');
+
+  let result = `<div>${safe}</div>`;
+  if (suggestion) {
+    result += `<div style="margin-top:6px; font-size:0.86rem; color:#0369a1; background:#f0f9ff; padding:3px 8px; border-radius:4px; border-left:3px solid #0284c7; display:block; width:fit-content; max-width:100%;">💡 <strong>建议:</strong> ${suggestion}</div>`;
   }
 
   return result;
@@ -2476,6 +2592,16 @@ async function openEditDocModal(type, id) {
             <td><input class="form-control form-control-sm" id="em-lab-${idx}-value" value="${it.value !== null && it.value !== undefined ? it.value : (it.value_text || '')}"></td>
             <td><input class="form-control form-control-sm" id="em-lab-${idx}-unit" value="${escapeHtml(it.unit || '')}"></td>
             <td><input class="form-control form-control-sm" id="em-lab-${idx}-range" value="${escapeHtml(it.ref_range || '')}"></td>
+            <td style="text-align:center;">
+              <select class="form-select form-select-sm status-select" id="em-lab-${idx}-status" 
+                      onchange="updateStatusPill(this)"
+                      style="width:100%; max-width:88px; border-radius:12px; font-weight:600; font-size:0.78rem; text-align:center; padding:2px 6px; cursor:pointer; margin:0 auto; ${getStatusPillStyle(it.status)}">
+                <option value="NORMAL" ${it.status === 'NORMAL' ? 'selected' : ''}>正常</option>
+                <option value="HIGH" ${it.status === 'HIGH' ? 'selected' : ''}>偏高 ↑</option>
+                <option value="LOW" ${it.status === 'LOW' ? 'selected' : ''}>偏低 ↓</option>
+                <option value="ABNORMAL" ${it.status === 'ABNORMAL' ? 'selected' : ''}>异常</option>
+              </select>
+            </td>
           </tr>
         `;
       }).join('');
@@ -2487,9 +2613,11 @@ async function openEditDocModal(type, id) {
           <input class="form-control form-control-sm" id="em-lab-hospital" value="${escapeHtml(doc.hospital || '')}" placeholder="医院">
         </div>
         <div class="table-responsive">
-          <table class="med-table">
+          <table class="med-table" style="width:100%;">
             <thead>
-              <tr><th>项目名称</th><th>代码</th><th>测定值</th><th>单位</th><th>参考区间</th></tr>
+              <tr style="background:#f8fafc; color:#64748b;">
+                <th>项目名称</th><th>代码</th><th>测定值</th><th>单位</th><th>参考区间</th><th style="text-align:center; width:100px;">状态</th>
+              </tr>
             </thead>
             <tbody>${rows}</tbody>
           </table>
@@ -2553,18 +2681,20 @@ async function submitEditDoc() {
   try {
     if (type === 'lab') {
       const items = [];
-      (currentEditData.items || []).forEach((_, idx) => {
-        const vCode = document.getElementById(`em-lab-${idx}-code`)?.value || 'OTHER';
+      (currentEditData.items || []).forEach((it, idx) => {
+        const vCode = document.getElementById(`em-lab-${idx}-code`)?.value || it.item_code || 'OTHER';
         let vValStr = document.getElementById(`em-lab-${idx}-value`)?.value || '';
         let parsedVal = parseFloat(vValStr.replace(/[^\d.-]/g, ''));
+        const statusVal = document.getElementById(`em-lab-${idx}-status`)?.value || it.status || 'NORMAL';
         
         items.push({
-          item_name: document.getElementById(`em-lab-${idx}-name`)?.value || '未知',
+          item_name: document.getElementById(`em-lab-${idx}-name`)?.value || it.item_name || '未知',
           item_code: vCode.toUpperCase().trim(),
           value: isNaN(parsedVal) ? null : parsedVal,
           value_text: vValStr,
-          unit: document.getElementById(`em-lab-${idx}-unit`)?.value || '',
-          ref_range: document.getElementById(`em-lab-${idx}-range`)?.value || '',
+          unit: document.getElementById(`em-lab-${idx}-unit`)?.value || it.unit || '',
+          ref_range: document.getElementById(`em-lab-${idx}-range`)?.value || it.ref_range || '',
+          status: statusVal,
           test_date: document.getElementById('em-lab-date')?.value || ''
         });
       });
