@@ -501,7 +501,7 @@ select option {
   }
 }
 
-/* 归档单据详情微标签 */
+/* 归档单据详情微标签 (兼容类) */
 .doc-detail-tag {
   display: inline-flex;
   align-items: center;
@@ -521,6 +521,28 @@ select option {
   background: #0284c7;
   color: #ffffff;
   border-color: #0284c7;
+}
+
+/* 归档单据卡片响应式操作栏 (手机端横向排布，桌面端竖向成组) */
+@media (max-width: 640px) {
+  .uploaded-doc-card {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+  .uploaded-doc-actions {
+    flex-direction: row !important;
+    justify-content: flex-end !important;
+    width: 100% !important;
+    border-top: 1px dashed #e2e8f0 !important;
+    padding-top: 10px !important;
+    gap: 8px !important;
+  }
+  .uploaded-doc-actions .btn {
+    flex: 1 1 auto;
+    text-align: center;
+    padding: 6px 8px;
+    font-size: 0.82rem;
+  }
 }
 
 /* 遮罩背景 (移动端抽屉或固定模式) */

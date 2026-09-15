@@ -1002,7 +1002,7 @@ async function loadUploadedDocs() {
       const hospBadge = doc.details?.hospital ? `<span style="font-size:0.8rem; color:#64748b; background:#f1f5f9; padding:2px 8px; border-radius:4px;">🏥 ${escapeHtml(doc.details.hospital)}</span>` : '';
       
       html += `
-          <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:14px; border-radius:8px; display:flex; justify-content:space-between; align-items:flex-start; gap:12px; transition:box-shadow 0.2s, border-color 0.2s;">
+          <div class="uploaded-doc-card" style="background:#f8fafc; border:1px solid #e2e8f0; padding:14px; border-radius:8px; display:flex; justify-content:space-between; align-items:flex-start; gap:12px; transition:box-shadow 0.2s, border-color 0.2s;">
             <div style="flex:1; overflow:hidden;">
               <div style="margin-bottom:6px; display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
                 <span style="margin-right:2px;">${cfg.icon}</span>
@@ -1011,20 +1011,26 @@ async function loadUploadedDocs() {
                         style="color:#0f172a; font-size:0.95rem; cursor:pointer;" 
                         onclick="handleDocDetailClick(event, '${doc.id}')"
                         onmouseenter="handleDocDetailMouseEnter(event, '${doc.id}')" 
-                        onmouseleave="handleDocDetailMouseLeave(event)">${escapeHtml(doc.title)}</strong>
+                        onmouseleave="handleDocDetailMouseLeave(event)"
+                        title="点击或悬停查看详细数据">${escapeHtml(doc.title)}</strong>
                 <span style="font-size:0.85rem; color:#64748b;">📅 ${doc.event_date}</span>
                 ${hospBadge}
-                <button type="button" class="doc-detail-tag doc-detail-trigger" 
-                        onclick="handleDocDetailClick(event, '${doc.id}')"
-                        onmouseenter="handleDocDetailMouseEnter(event, '${doc.id}')" 
-                        onmouseleave="handleDocDetailMouseLeave(event)"
-                        title="查看详细数据">详情</button>
               </div>
               <div style="font-size:0.9rem; color:#475569; line-height:1.4;">${escapeHtml(doc.summary)}</div>
             </div>
-            <div style="display:flex; flex-direction:column; gap:8px; flex-shrink:0;">
-              <button class="btn btn-secondary btn-sm" style="color:#0284c7; border-color:#bae6fd; background:#f0f9ff;" onclick="openEditDocModal('${doc.event_type}', ${realId})">✏️ 编辑校对</button>
-              <button class="btn btn-secondary btn-sm" style="color:#ef4444; border-color:#fee2e2; background:#fef2f2;" onclick="deleteUploadedDoc('${doc.event_type}', ${realId})">🗑️ 删除</button>
+            <div class="uploaded-doc-actions" style="display:flex; flex-direction:column; gap:6px; flex-shrink:0;">
+              <button type="button" class="btn btn-secondary btn-sm doc-detail-trigger" 
+                      style="color:#0284c7; border-color:#bae6fd; background:#f0f9ff;"
+                      onclick="handleDocDetailClick(event, '${doc.id}')"
+                      onmouseenter="handleDocDetailMouseEnter(event, '${doc.id}')" 
+                      onmouseleave="handleDocDetailMouseLeave(event)"
+                      title="点击或悬停查看详细数据">📋 详情</button>
+              <button type="button" class="btn btn-secondary btn-sm" 
+                      style="color:#334155; border-color:#cbd5e1; background:#ffffff;" 
+                      onclick="openEditDocModal('${doc.event_type}', ${realId})">✏️ 编辑校对</button>
+              <button type="button" class="btn btn-secondary btn-sm" 
+                      style="color:#ef4444; border-color:#fee2e2; background:#fef2f2;" 
+                      onclick="deleteUploadedDoc('${doc.event_type}', ${realId})">🗑️ 删除</button>
             </div>
           </div>
         `;
