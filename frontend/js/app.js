@@ -775,7 +775,8 @@ async function deleteTimelineEvent(type, id) {
 window.deleteTimelineEvent = deleteTimelineEvent;
 
 // ==================== 单据识别管理 (Uploaded Docs) 详情浮窗与移动端抽屉 ====================
-let loadedDocsMap = {};
+window.loadedDocsMap = window.loadedDocsMap || {};
+let loadedDocsMap = window.loadedDocsMap;
 let hoverPopoverTimer = null;
 let activeHoverDocId = null;
 let isPopoverPinned = false;
@@ -834,7 +835,7 @@ function getDocHoverPopover() {
 
 function showDocHoverPopover(event, docId, isClick = false) {
   if (hoverPopoverTimer) clearTimeout(hoverPopoverTimer);
-  const doc = loadedDocsMap[docId];
+  const doc = (window.loadedDocsMap && window.loadedDocsMap[docId]) || loadedDocsMap[docId];
   if (!doc) return;
 
   const mobile = isMobileDevice();
@@ -930,6 +931,63 @@ function showDocHoverPopover(event, docId, isClick = false) {
         </div>
         ${doc.details?.sample_type ? `<div style="font-size:0.85rem; color:#64748b; margin-bottom:6px;"><strong>标本类型:</strong> ${escapeHtml(doc.details.sample_type)}</div>` : ''}
         ${doc.details?.ihc ? `<div style="font-size:0.85rem; color:#64748b;"><strong>免疫组化 (IHC):</strong> ${escapeHtml(typeof doc.details.ihc === 'object' ? JSON.stringify(doc.details.ihc) : doc.details.ihc)}</div>` : ''}
+      </div>
+    `;
+  } else if (doc.event_type === 'surgery') {
+    bodyHtml = `
+      <div style="padding:16px; overflow-y:auto; -webkit-overflow-scrolling:touch; max-height:${mobile ? '58vh' : '360px'}; line-height:1.6;">
+        <div style="margin-bottom:12px;">
+          <div style="font-weight:600; color:#dc2626; font-size:0.84rem; margin-bottom:4px;">🔪 外科手术记录</div>
+          <div style="background:#fef2f2; padding:10px 12px; border-radius:8px; font-size:0.88rem; color:#991b1b; border-left:3px solid #ef4444; border:1px solid #fee2e2;">
+            <div><strong>主刀医生:</strong> ${escapeHtml(doc.details?.surgeon || '未记录')}</div>
+            ${doc.details?.margins ? `<div style="margin-top:4px;"><strong>切缘状态:</strong> ${escapeHtml(doc.details.margins)}</div>` : ''}
+            ${doc.details?.complications ? `<div style="margin-top:4px;"><strong>并发症:</strong> ${escapeHtml(doc.details.complications)}</div>` : ''}
+          </div>
+        </div>
+        ${doc.details?.pathology ? `
+          <div>
+            <div style="font-weight:600; color:#0f172a; font-size:0.84rem; margin-bottom:4px;">🔬 术后病理概要</div>
+            <div style="background:#f8fafc; padding:10px 12px; border-radius:8px; font-size:0.88rem; color:#334155; border:1px solid #e2e8f0;">${escapeHtml(doc.details.pathology)}</div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  } else if (doc.event_type === 'therapy') {
+    bodyHtml = `
+      <div style="padding:16px; overflow-y:auto; -webkit-overflow-scrolling:touch; max-height:${mobile ? '58vh' : '360px'}; line-height:1.6;">
+        <div style="margin-bottom:12px;">
+          <div style="font-weight:600; color:#0284c7; font-size:0.84rem; margin-bottom:4px;">💊 用药方案与治疗记录</div>
+          <div style="background:#f0f9ff; padding:10px 12px; border-radius:8px; font-size:0.88rem; color:#0369a1; border-left:3px solid #0284c7; border:1px solid #e0f2fe;">
+            <div><strong>用药明细:</strong> ${escapeHtml(typeof doc.details?.drugs === 'object' ? JSON.stringify(doc.details.drugs) : (doc.details?.drugs || doc.title || '未记录'))}</div>
+            ${doc.details?.adverse ? `<div style="margin-top:4px; color:#b91c1c;"><strong>不良反应/毒副反应:</strong> ${escapeHtml(doc.details.adverse)}</div>` : ''}
+          </div>
+        </div>
+        ${doc.details?.notes ? `
+          <div>
+            <div style="font-weight:600; color:#0f172a; font-size:0.84rem; margin-bottom:4px;">📝 疗效评估与随访备注</div>
+            <div style="background:#f8fafc; padding:10px 12px; border-radius:8px; font-size:0.88rem; color:#334155; border:1px solid #e2e8f0;">${escapeHtml(doc.details.notes)}</div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  } else if (doc.event_type === 'radio') {
+    bodyHtml = `
+      <div style="padding:16px; overflow-y:auto; -webkit-overflow-scrolling:touch; max-height:${mobile ? '58vh' : '360px'}; line-height:1.6;">
+        <div style="margin-bottom:12px;">
+          <div style="font-weight:600; color:#ea580c; font-size:0.84rem; margin-bottom:4px;">⚡ 放射治疗详情</div>
+          <div style="background:#fff7ed; padding:10px 12px; border-radius:8px; font-size:0.88rem; color:#c2410c; border-left:3px solid #f97316; border:1px solid #ffedd5;">
+            <div><strong>治疗内容:</strong> ${escapeHtml(doc.summary || doc.title)}</div>
+            ${doc.details?.toxicity ? `<div style="margin-top:4px; color:#b91c1c;"><strong>放射毒副反应:</strong> ${escapeHtml(doc.details.toxicity)}</div>` : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  } else {
+    bodyHtml = `
+      <div style="padding:16px; overflow-y:auto; -webkit-overflow-scrolling:touch; max-height:${mobile ? '58vh' : '360px'}; line-height:1.6;">
+        <div style="background:#f8fafc; padding:12px 14px; border-radius:8px; font-size:0.88rem; color:#334155; border:1px solid #e2e8f0;">
+          ${escapeHtml(doc.summary || doc.title || '暂无详细明细记录')}
+        </div>
       </div>
     `;
   }
@@ -1091,7 +1149,7 @@ function formatSummaryWithHighlights(text) {
   const abnormalKw = /(↑|↓|偏高|偏低|轻度偏高|明显偏高|异常|阳性|强阳性|弱阳性|突变|超出参考|转移|进展|恶性)/;
   const normalExclusions = /^(?:无|未见异常|正常参考|正常范围|阴性\(-?\)|未见异常指标|各项均在正常范围|未见特殊异常)[。；;\s]*$/;
 
-  const abnRegex = /(?:【异常指标】|【异常指标提示】|异常指标[:：]|异常指标提示[:：])\s*([\s\S]+)$/;
+  const abnRegex = /(?:【异常指标】|【异常指标提示】|【关注】|【关注指标】|异常指标[:：]|异常指标提示[:：]|关注[:：]|关注指标[:：])\s*([\s\S]+)$/;
   const abnMatch = safe.match(abnRegex);
 
   if (abnMatch && abnormalKw.test(abnMatch[1]) && !normalExclusions.test(abnMatch[1].trim())) {
@@ -1132,13 +1190,13 @@ function formatSummaryWithHighlights(text) {
   safe = safe.replace(/^客观总结(?:陈述)?[:：]\s*/g, '');
   safe = safe.trim();
 
-  // 4. 组装展示 HTML (客观总结陈述 + 异常指标单列 + 建议单列)
+  // 4. 组装展示 HTML (客观总结陈述 + 关注单列 + 建议单列)
   let result = '';
   if (safe) {
     result += `<div style="color:#334155; line-height:1.6;">${safe}</div>`;
   }
   if (abnormal) {
-    result += `<div style="margin-top:6px; font-size:0.86rem; color:#991b1b; background:#fef2f2; padding:4px 10px; border-radius:4px; border-left:3px solid #ef4444; border-top:1px solid #fee2e2; border-right:1px solid #fee2e2; border-bottom:1px solid #fee2e2; line-height:1.5;"><strong>⚠️ 异常指标:</strong> ${abnormal}</div>`;
+    result += `<div style="margin-top:6px; font-size:0.86rem; color:#991b1b; background:#fef2f2; padding:4px 10px; border-radius:4px; border-left:3px solid #ef4444; border-top:1px solid #fee2e2; border-right:1px solid #fee2e2; border-bottom:1px solid #fee2e2; line-height:1.5;"><strong>⚠️ 关注:</strong> ${abnormal}</div>`;
   }
   if (suggestion) {
     result += `<div style="margin-top:6px; font-size:0.86rem; color:#0369a1; background:#f0f9ff; padding:4px 10px; border-radius:4px; border-left:3px solid #0284c7; border-top:1px solid #e0f2fe; border-right:1px solid #e0f2fe; border-bottom:1px solid #e0f2fe; line-height:1.5;"><strong>💡 建议:</strong> ${suggestion}</div>`;

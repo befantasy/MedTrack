@@ -14,6 +14,10 @@ const TimelineModule = {
       container.innerHTML = '<div style="text-align:center; padding:30px; color:#64748b;">正在加载全病程事件脉络...</div>';
       const targetUserId = window.inspectTargetUserId || null;
       this.events = await API.getTimeline(targetUserId);
+      window.loadedDocsMap = window.loadedDocsMap || {};
+      this.events.forEach(e => {
+        window.loadedDocsMap[e.id] = e;
+      });
       this.render(containerId);
     } catch (err) {
       container.innerHTML = `<div style="text-align:center; padding:30px; color:#ef4444;">加载失败: ${err.message}</div>`;
@@ -79,10 +83,21 @@ const TimelineModule = {
           <div class="timeline-dot ${cfg.dotClass}"></div>
           <div class="timeline-content">
             <div class="timeline-header">
-              <div>
-                <span style="margin-right:6px;">${cfg.icon}</span>
-                <span class="badge ${cfg.badgeClass}" style="margin-right:8px;">${item.category_label}</span>
-                <strong style="font-size:1rem; color:#1e293b;">${escapeHtml(item.title)}</strong>
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <span style="margin-right:2px;">${cfg.icon}</span>
+                <span class="badge ${cfg.badgeClass}">${item.category_label}</span>
+                <strong class="doc-detail-trigger" role="button" tabindex="0"
+                        style="font-size:1rem; color:#1e293b; cursor:pointer;"
+                        onclick="handleDocDetailClick(event, '${item.id}')"
+                        onmouseenter="handleDocDetailMouseEnter(event, '${item.id}')" 
+                        onmouseleave="handleDocDetailMouseLeave(event)"
+                        title="点击或悬停查看详细数据">${escapeHtml(item.title)}</strong>
+                <button type="button" class="btn btn-secondary btn-sm doc-detail-trigger" 
+                        style="padding:2px 8px; font-size:0.78rem; color:#0284c7; border-color:#bae6fd; background:#f0f9ff; cursor:pointer; display:inline-flex; align-items:center; gap:3px; border-radius:4px; line-height:1.4;"
+                        onclick="handleDocDetailClick(event, '${item.id}')"
+                        onmouseenter="handleDocDetailMouseEnter(event, '${item.id}')" 
+                        onmouseleave="handleDocDetailMouseLeave(event)"
+                        title="点击或悬停查看详细数据">📋 详情</button>
               </div>
               <div style="font-size:0.85rem; color:#64748b; font-weight:500;">
                 📅 ${item.event_date}
@@ -134,7 +149,7 @@ function formatSummaryWithHighlights(text) {
   const abnormalKw = /(↑|↓|偏高|偏低|轻度偏高|明显偏高|异常|阳性|强阳性|弱阳性|突变|超出参考|转移|进展|恶性)/;
   const normalExclusions = /^(?:无|未见异常|正常参考|正常范围|阴性\(-?\)|未见异常指标|各项均在正常范围|未见特殊异常)[。；;\s]*$/;
 
-  const abnRegex = /(?:【异常指标】|【异常指标提示】|异常指标[:：]|异常指标提示[:：])\s*([\s\S]+)$/;
+  const abnRegex = /(?:【异常指标】|【异常指标提示】|【关注】|【关注指标】|异常指标[:：]|异常指标提示[:：]|关注[:：]|关注指标[:：])\s*([\s\S]+)$/;
   const abnMatch = safe.match(abnRegex);
 
   if (abnMatch && abnormalKw.test(abnMatch[1]) && !normalExclusions.test(abnMatch[1].trim())) {
@@ -175,13 +190,13 @@ function formatSummaryWithHighlights(text) {
   safe = safe.replace(/^客观总结(?:陈述)?[:：]\s*/g, '');
   safe = safe.trim();
 
-  // 4. 组装展示 HTML (客观总结陈述 + 异常指标单列 + 建议单列)
+  // 4. 组装展示 HTML (客观总结陈述 + 关注单列 + 建议单列)
   let result = '';
   if (safe) {
     result += `<div style="color:#334155; line-height:1.6;">${safe}</div>`;
   }
   if (abnormal) {
-    result += `<div style="margin-top:6px; font-size:0.86rem; color:#991b1b; background:#fef2f2; padding:4px 10px; border-radius:4px; border-left:3px solid #ef4444; border-top:1px solid #fee2e2; border-right:1px solid #fee2e2; border-bottom:1px solid #fee2e2; line-height:1.5;"><strong>⚠️ 异常指标:</strong> ${abnormal}</div>`;
+    result += `<div style="margin-top:6px; font-size:0.86rem; color:#991b1b; background:#fef2f2; padding:4px 10px; border-radius:4px; border-left:3px solid #ef4444; border-top:1px solid #fee2e2; border-right:1px solid #fee2e2; border-bottom:1px solid #fee2e2; line-height:1.5;"><strong>⚠️ 关注:</strong> ${abnormal}</div>`;
   }
   if (suggestion) {
     result += `<div style="margin-top:6px; font-size:0.86rem; color:#0369a1; background:#f0f9ff; padding:4px 10px; border-radius:4px; border-left:3px solid #0284c7; border-top:1px solid #e0f2fe; border-right:1px solid #e0f2fe; border-bottom:1px solid #e0f2fe; line-height:1.5;"><strong>💡 建议:</strong> ${suggestion}</div>`;
