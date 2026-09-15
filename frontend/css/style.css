@@ -605,3 +605,252 @@ select option {
   opacity: 1 !important;
 }
 
+/* ==================== 指标看板 (Charts Dashboard) 现代化升级样式 ==================== */
+.charts-summary-card {
+  border: 1px solid #e2e8f0;
+  border-top: 3px solid var(--primary);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: var(--radius-md);
+}
+
+.charts-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.charts-kpi-card {
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  padding: 12px 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.charts-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+  border-color: #cbd5e1;
+}
+
+.charts-kpi-card.status-high {
+  border-left: 4px solid #ef4444;
+  background: #fffcfc;
+}
+
+.charts-kpi-card.status-low {
+  border-left: 4px solid #f59e0b;
+  background: #fffdfa;
+}
+
+.charts-kpi-card.status-normal {
+  border-left: 4px solid #10b981;
+}
+
+.charts-kpi-card .kpi-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 6px;
+}
+
+.charts-kpi-card .kpi-name {
+  font-weight: 700;
+  font-size: 0.93rem;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+
+.charts-kpi-card .kpi-code {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.charts-kpi-card .kpi-body {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin: 6px 0;
+}
+
+.charts-kpi-card .kpi-val {
+  font-size: 1.45rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #0f172a;
+}
+
+.charts-kpi-card.status-high .kpi-val {
+  color: #dc2626;
+}
+
+.charts-kpi-card.status-low .kpi-val {
+  color: #d97706;
+}
+
+.charts-kpi-card .kpi-unit {
+  font-size: 0.76rem;
+  color: #64748b;
+  font-weight: 500;
+  margin-left: 3px;
+}
+
+.charts-kpi-card .kpi-trend {
+  font-size: 0.78rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.charts-kpi-card .kpi-footer {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px dashed #f1f5f9;
+  padding-top: 6px;
+  margin-top: 4px;
+}
+
+/* 分类与检索按钮栏 */
+.charts-category-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.charts-filter-btn {
+  background: #f1f5f9;
+  border: 1px solid transparent;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.charts-filter-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.charts-filter-btn.active {
+  background: var(--primary);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25);
+}
+
+.charts-filter-btn.filter-abnormal.active {
+  background: #ef4444;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.25);
+}
+
+.time-range-btn {
+  background: transparent;
+  border: none;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.time-range-btn:hover {
+  color: #0f172a;
+  background: #e2e8f0;
+}
+
+.time-range-btn.active {
+  background: #0284c7;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* 升级版指标药丸 */
+.metric-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  font-size: 0.82rem;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.metric-pill:hover {
+  border-color: #94a3b8;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+}
+
+.metric-pill.active {
+  background: #0284c7 !important;
+  border-color: #0284c7 !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  box-shadow: 0 3px 8px rgba(2, 132, 199, 0.35);
+}
+
+.metric-pill.active .pill-meta {
+  color: #bae6fd !important;
+}
+
+.pill-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.pill-status-dot.normal { background: #10b981; }
+.pill-status-dot.high { background: #ef4444; }
+.pill-status-dot.low { background: #f59e0b; }
+
+@media (max-width: 768px) {
+  .charts-kpi-grid {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: 10px;
+    padding-bottom: 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .charts-kpi-card {
+    min-width: 220px;
+    max-width: 260px;
+    scroll-snap-align: start;
+    flex-shrink: 0;
+  }
+  #chart-focus-container {
+    height: 300px !important;
+  }
+  #chart-tumor-markers, #chart-safety-markers, #chart-chronic-markers {
+    height: 320px !important;
+  }
+}
+
+

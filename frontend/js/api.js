@@ -374,6 +374,14 @@ const API = {
   },
 
   // ==================== 指标图表数据 ====================
+  async getChartOverview(targetUserId = null) {
+    let url = '/charts/overview';
+    if (targetUserId) {
+      url += `?target_user_id=${encodeURIComponent(targetUserId)}`;
+    }
+    return await this.request(url);
+  },
+
   async getAvailableMetrics(targetUserId = null) {
     let url = '/charts/available-metrics';
     if (targetUserId) {

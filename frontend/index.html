@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MedTrack | 肿瘤全过程治疗与慢病智能管理平台</title>
-  <link rel="stylesheet" href="css/style.css?v=2.26">
+  <link rel="stylesheet" href="css/style.css?v=2.29">
   <!-- ECharts 5 科学图表库 -->
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 </head>
@@ -123,41 +123,104 @@
 
     <!-- 选项卡 4: 指标动态看板 (ECharts) -->
     <section class="tab-content" id="tab-charts" style="display:none;">
-      <!-- 动态指标筛选与刷新工具栏 -->
-      <div class="card" style="margin-bottom:16px; padding:16px 20px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:8px;">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <span style="font-weight:700; font-size:1.05rem; color:#0f172a;">📊 指标看板</span>
-            <span id="charts-metrics-count" class="badge badge-blue">加载指标中...</span>
+      <!-- 1. 顶部全局健康态势 (Executive Health Summary Bar) -->
+      <div class="card charts-summary-card" id="charts-executive-summary" style="margin-bottom:16px; padding:16px 20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+          <div style="display:flex; align-items:center; flex-wrap:wrap; gap:10px;">
+            <span style="font-weight:800; font-size:1.1rem; color:#0f172a; display:flex; align-items:center; gap:6px;">
+              📊 全局健康态势
+            </span>
+            <span id="charts-latest-date-badge" class="badge badge-gray" style="font-size:0.83rem;">
+              📅 最近采样: 加载中...
+            </span>
+            <div id="charts-summary-stats" style="display:flex; align-items:center; gap:8px;">
+              <span id="charts-stat-total" class="badge badge-blue">检测 0 项</span>
+              <span id="charts-stat-normal" class="badge badge-green">正常 0 项</span>
+              <span id="charts-stat-abnormal" class="badge badge-red" style="cursor:pointer;" onclick="ChartsModule.setCategoryFilter('abnormal')" title="点击筛选关注/异常指标">⚠️ 关注 0 项</span>
+            </div>
           </div>
-          <button class="btn btn-secondary btn-sm" onclick="ChartsModule.refresh()">🔄 刷新图表数据</button>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button class="btn btn-secondary btn-sm" onclick="ChartsModule.refresh()" title="重新同步最新化验指标并刷新看板">
+              🔄 刷新看板
+            </button>
+          </div>
         </div>
-        <div style="font-size:0.86rem; color:#64748b; margin-bottom:10px;">
-          系统已自动汇聚化验单中的所有检验指标。点击下方药丸徽章可快速聚焦或查看具体指标的时序演变趋势：
-        </div>
-        <div id="charts-metrics-pills-bar" style="display:flex; flex-wrap:wrap; gap:8px;">
-          <!-- 动态渲染用户实际拥有的指标药丸 -->
+
+        <!-- 重点关注与核心 KPI 卡片区 (桌面自适应网格，移动端横向滑屏) -->
+        <div id="charts-kpi-container" class="charts-kpi-grid" style="margin-top:14px;">
+          <!-- 动态渲染 3~4 张核心指标快照卡片（含微缩走势 Sparkline） -->
         </div>
       </div>
 
-      <!-- 单项指标深度聚焦卡片（点击任意药丸时展开） -->
+      <!-- 2. 智能筛选与检索工具栏 (Filter & Search Toolbar) -->
+      <div class="card" style="margin-bottom:16px; padding:14px 18px;">
+        <!-- 第一行：分类筛选 + 时间跨度 + 快速搜索 -->
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+          <!-- 分类过滤器 -->
+          <div id="charts-category-filters" class="charts-category-bar">
+            <button class="charts-filter-btn active" data-filter="all" onclick="ChartsModule.setCategoryFilter('all')">全部 (<span id="filter-count-all">0</span>)</button>
+            <button class="charts-filter-btn filter-abnormal" data-filter="abnormal" onclick="ChartsModule.setCategoryFilter('abnormal')">⚠️ 仅看关注 (<span id="filter-count-abnormal">0</span>)</button>
+            <button class="charts-filter-btn" data-filter="tumor_marker" onclick="ChartsModule.setCategoryFilter('tumor_marker')">🩸 肿瘤标志物 (<span id="filter-count-tumor">0</span>)</button>
+            <button class="charts-filter-btn" data-filter="safety_toxicity" onclick="ChartsModule.setCategoryFilter('safety_toxicity')">🛡️ 毒副/器官 (<span id="filter-count-safety">0</span>)</button>
+            <button class="charts-filter-btn" data-filter="chronic" onclick="ChartsModule.setCategoryFilter('chronic')">🩺 慢病代谢 (<span id="filter-count-chronic">0</span>)</button>
+            <button class="charts-filter-btn" data-filter="other" onclick="ChartsModule.setCategoryFilter('other')">🧪 其他通用 (<span id="filter-count-other">0</span>)</button>
+          </div>
+
+          <!-- 右侧：时间跨度快捷切换 + 快速搜索框 -->
+          <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px;">
+            <div class="charts-time-range-group" style="display:inline-flex; border:1px solid #e2e8f0; border-radius:6px; overflow:hidden; background:#f8fafc;">
+              <button class="time-range-btn active" data-range="all" onclick="ChartsModule.setTimeRange('all')">全部</button>
+              <button class="time-range-btn" data-range="1y" onclick="ChartsModule.setTimeRange('1y')">近1年</button>
+              <button class="time-range-btn" data-range="6m" onclick="ChartsModule.setTimeRange('6m')">近6个月</button>
+              <button class="time-range-btn" data-range="3m" onclick="ChartsModule.setTimeRange('3m')">近3个月</button>
+            </div>
+            <div style="position:relative; min-width:210px;">
+              <input type="text" id="charts-search-input" 
+                class="form-control" 
+                placeholder="🔍 搜索指标 (如 CEA、白细胞)..." 
+                oninput="ChartsModule.onSearchInput(this.value)"
+                style="padding:6px 26px 6px 28px; font-size:0.83rem; height:32px; border-radius:6px;" />
+              <span style="position:absolute; left:8px; top:50%; transform:translateY(-50%); font-size:0.82rem; color:#94a3b8; pointer-events:none;">🔍</span>
+              <button id="charts-search-clear" onclick="ChartsModule.clearSearch()" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:#94a3b8; cursor:pointer; display:none; font-size:0.8rem; padding:2px;">✖</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 第二行：指标药丸清单（带状态红绿小点、选中高亮、数值单位预览） -->
+        <div id="charts-metrics-pills-bar" style="display:flex; flex-wrap:wrap; gap:8px; min-height:36px; align-items:center;">
+          <!-- 动态渲染符合筛选和搜索条件的指标药丸 -->
+        </div>
+      </div>
+
+      <!-- 3. 深度聚焦与自由对比工作台 (Focus & Comparative Workbench) -->
       <div id="charts-focus-card" class="card" style="display:none; margin-bottom:16px; border:1.5px solid #0284c7; background:#f0f9ff; padding:16px 20px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-          <h3 id="charts-focus-title" style="font-size:1.05rem; font-weight:700; color:#0369a1; margin:0;">🔍 指标专属深度时序图</h3>
-          <button class="btn btn-secondary btn-sm" onclick="document.getElementById('charts-focus-card').style.display='none'">✖ 关闭聚焦图</button>
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <h3 id="charts-focus-title" style="font-size:1.05rem; font-weight:700; color:#0369a1; margin:0;">
+              🔍 指标深度聚焦与对比工作台
+            </h3>
+            <div id="charts-focus-active-tags" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span id="charts-compare-hint" style="font-size:0.78rem; color:#0369a1; background:rgba(2,132,199,0.1); padding:3px 8px; border-radius:4px;">
+              💡 提示：点击药丸可快速聚焦；按住 Ctrl/Cmd 或点击对比可同屏对照 (最多 3 项)
+            </span>
+            <button class="btn btn-secondary btn-sm" onclick="ChartsModule.closeFocusCard()">✖ 关闭工作台</button>
+          </div>
         </div>
-        <div id="chart-focus-container" style="height:320px; background:#ffffff; border-radius:8px; padding:10px;"></div>
+        <div id="chart-focus-container" style="height:350px; background:#ffffff; border-radius:8px; padding:10px;"></div>
       </div>
 
+      <!-- 4. 固定三大分类监控看板 (ECharts) -->
       <div class="grid-2">
-        <div class="card">
+        <div class="card" style="position:relative;">
           <div id="chart-tumor-markers" style="height:380px;"></div>
         </div>
-        <div class="card">
+        <div class="card" style="position:relative;">
           <div id="chart-safety-markers" style="height:380px;"></div>
         </div>
       </div>
-      <div class="card">
+      <div class="card" style="margin-top:16px; position:relative;">
         <div id="chart-chronic-markers" style="height:340px;"></div>
       </div>
     </section>
@@ -809,9 +872,9 @@
   </div>
 
   <!-- 引入逻辑脚本 (加版本号防浏览器强缓存) -->
-  <script src="js/api.js?v=2.28"></script>
-  <script src="js/timeline.js?v=2.28"></script>
-  <script src="js/charts.js?v=2.28"></script>
-  <script src="js/app.js?v=2.28"></script>
+  <script src="js/api.js?v=2.29"></script>
+  <script src="js/timeline.js?v=2.29"></script>
+  <script src="js/charts.js?v=2.29"></script>
+  <script src="js/app.js?v=2.29"></script>
 </body>
 </html>

@@ -40,41 +40,290 @@ for group in ALIAS_GROUPS:
 
 from services.unit_converter import normalize_lab_unit_and_value, STANDARD_UNITS
 
+def determine_item_status(val: Any, ref_min: Any, ref_max: Any, raw_status: Any) -> str:
+    """综合测定数值与参考区间判定指标是否异常 (HIGH / LOW / ABNORMAL / NORMAL)"""
+    if val is not None and ref_max is not None:
+        try:
+            if float(val) > float(ref_max):
+                return "HIGH"
+        except (ValueError, TypeError):
+            pass
+    if val is not None and ref_min is not None:
+        try:
+            if float(val) < float(ref_min):
+                return "LOW"
+        except (ValueError, TypeError):
+            pass
+    raw = (raw_status or "").strip().upper()
+    if raw in ("HIGH", "LOW", "ABNORMAL"):
+        return raw
+    return "NORMAL"
+
+@router.get("/overview")
+def get_chart_overview(
+    target_user_id: int = None,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    指标看板全景概览数据：
+    1. 最近一次采样检验的综合态势快照（采样日期、总项数、正常项数、关注项数、关注清单）
+    2. 核心 KPI 聚焦卡片（优先提取当前异常指标 + 核心肿瘤/血液/代谢指标，含微缩 Sparkline 时序走势）
+    3. 各类目指标数量分布统计
+    """
+    user_id = target_user_id if (current_user.is_admin and target_user_id) else current_user.id
+
+    items = db.query(models.LabItem).filter(
+        models.LabItem.user_id == user_id,
+        models.LabItem.item_code != None,
+        models.LabItem.item_code != "",
+        models.LabItem.test_date != None,
+        models.LabItem.test_date != ""
+    ).order_by(models.LabItem.test_date.asc(), models.LabItem.id.asc()).all()
+
+    if not items:
+        return {
+            "has_data": False,
+            "latest_date": None,
+            "latest_stats": {
+                "total_items": 0,
+                "normal_count": 0,
+                "abnormal_count": 0,
+                "abnormal_items": []
+            },
+            "kpi_cards": [],
+            "categories": {
+                "tumor_marker": 0,
+                "safety_toxicity": 0,
+                "chronic": 0,
+                "other": 0
+            }
+        }
+
+    # 1. 获取所有不重复的采样日期
+    dates = sorted(list({it.test_date for it in items if it.test_date}))
+    latest_date = dates[-1]
+
+    # 2. 按标准缩写聚合所有指标历史
+    grouped = {}
+    for it in items:
+        raw_code = (it.item_code or "").strip()
+        code_upper = raw_code.upper()
+        canon = CANONICAL_MAP.get(code_upper, code_upper)
+
+        norm_res = normalize_lab_unit_and_value(
+            item_code=canon,
+            value=it.value,
+            unit=it.unit,
+            ref_min=it.ref_min,
+            ref_max=it.ref_max,
+            ref_range=it.ref_range
+        )
+        st = determine_item_status(norm_res["value"], norm_res["ref_min"], norm_res["ref_max"], it.status)
+
+        if canon not in grouped:
+            grouped[canon] = {
+                "code": canon,
+                "raw_code": raw_code,
+                "name": it.item_name or canon,
+                "category": it.category or "other",
+                "unit": norm_res["unit"] or STANDARD_UNITS.get(canon, it.unit or ""),
+                "ref_min": norm_res["ref_min"],
+                "ref_max": norm_res["ref_max"],
+                "ref_range": norm_res["ref_range"] or it.ref_range or "",
+                "records": []
+            }
+        
+        if norm_res["ref_max"] is not None:
+            grouped[canon]["ref_min"] = norm_res["ref_min"]
+            grouped[canon]["ref_max"] = norm_res["ref_max"]
+            grouped[canon]["ref_range"] = norm_res["ref_range"] or it.ref_range or ""
+
+        # 单日内去重，保留当日最新一条
+        rec_data = {
+            "date": it.test_date,
+            "value": norm_res["value"],
+            "raw_value": norm_res["raw_value"],
+            "raw_unit": norm_res["raw_unit"],
+            "is_converted": norm_res["is_converted"],
+            "status": st
+        }
+        existing_idx = next((i for i, r in enumerate(grouped[canon]["records"]) if r["date"] == it.test_date), None)
+        if existing_idx is not None:
+            grouped[canon]["records"][existing_idx] = rec_data
+        else:
+            grouped[canon]["records"].append(rec_data)
+
+    # 3. 统计最新一次采样的指标状况
+    latest_items_info = []
+    for canon, g in grouped.items():
+        on_latest = [r for r in g["records"] if r["date"] == latest_date]
+        if on_latest:
+            latest_items_info.append({
+                "canon": canon,
+                "name": g["name"],
+                "record": on_latest[-1]
+            })
+
+    total_items_on_latest = len(latest_items_info)
+    abnormal_items_on_latest = [
+        item["name"] or item["canon"]
+        for item in latest_items_info
+        if item["record"]["status"] != "NORMAL"
+    ]
+    abnormal_count_on_latest = len(abnormal_items_on_latest)
+    normal_count_on_latest = max(0, total_items_on_latest - abnormal_count_on_latest)
+
+    # 4. 统计各类目指标数量
+    categories_cnt = {
+        "tumor_marker": sum(1 for g in grouped.values() if g["category"] == "tumor_marker"),
+        "safety_toxicity": sum(1 for g in grouped.values() if g["category"] == "safety_toxicity"),
+        "chronic": sum(1 for g in grouped.values() if g["category"] == "chronic"),
+        "other": sum(1 for g in grouped.values() if g["category"] == "other")
+    }
+
+    # 5. 提炼核心 KPI 关注卡片 (最多 4 张)
+    candidates = []
+    for canon, g in grouped.items():
+        recs = g["records"]
+        if not recs:
+            continue
+        latest_rec = recs[-1]
+        prev_rec = recs[-2] if len(recs) >= 2 else None
+
+        delta = None
+        trend = "—"
+        if prev_rec and latest_rec["value"] is not None and prev_rec["value"] is not None:
+            delta = round(latest_rec["value"] - prev_rec["value"], 2)
+            if delta > 0:
+                trend = "↑"
+            elif delta < 0:
+                trend = "↓"
+            else:
+                trend = "—"
+
+        status = latest_rec["status"]
+        status_label = "正常"
+        if status == "HIGH":
+            status_label = "偏高"
+        elif status == "LOW":
+            status_label = "偏低"
+        elif status == "ABNORMAL":
+            status_label = "异常"
+
+        # 微缩 Sparkline（最近 8 次测试记录）
+        sparkline = [
+            {"date": r["date"], "value": r["value"]}
+            for r in recs[-8:]
+            if r["value"] is not None
+        ]
+
+        candidates.append({
+            "code": canon,
+            "name": g["name"],
+            "category": g["category"],
+            "unit": g["unit"],
+            "latest_value": latest_rec["value"],
+            "raw_value": latest_rec["raw_value"],
+            "raw_unit": latest_rec["raw_unit"],
+            "is_converted": latest_rec["is_converted"],
+            "status": status,
+            "status_label": status_label,
+            "prev_value": prev_rec["value"] if prev_rec else None,
+            "delta": delta,
+            "trend": trend,
+            "ref_min": g["ref_min"],
+            "ref_max": g["ref_max"],
+            "ref_range": g["ref_range"],
+            "sparkline": sparkline,
+            "points_count": len(recs)
+        })
+
+    # 排序评分：
+    # 异常排最前 (0 vs 1)
+    # 分类权重：肿瘤 > 安全性 > 慢病 > 其他
+    # 核心经典指标优先
+    CORE_METRICS_ORDER = ["CEA", "CA199", "CA125", "WBC", "PLT", "NEUT#", "ALT", "CR", "GLU", "HbA1c"]
+
+    def candidate_score(c):
+        is_abn = 0 if c["status"] in ("HIGH", "LOW", "ABNORMAL") else 1
+        cat_order = {"tumor_marker": 0, "safety_toxicity": 1, "chronic": 2, "other": 3}.get(c["category"], 4)
+        core_idx = CORE_METRICS_ORDER.index(c["code"]) if c["code"] in CORE_METRICS_ORDER else 99
+        return (is_abn, cat_order, core_idx, -c["points_count"])
+
+    candidates.sort(key=candidate_score)
+    kpi_cards = candidates[:4]
+
+    return {
+        "has_data": True,
+        "latest_date": latest_date,
+        "latest_stats": {
+            "total_items": total_items_on_latest,
+            "normal_count": normal_count_on_latest,
+            "abnormal_count": abnormal_count_on_latest,
+            "abnormal_items": abnormal_items_on_latest
+        },
+        "kpi_cards": kpi_cards,
+        "categories": categories_cnt
+    }
+
 @router.get("/available-metrics")
 def get_available_metrics(
     target_user_id: int = None,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """获取指定用户所有已记录的指标清单（智能去重与基准单位对齐）"""
+    """获取指定用户所有已记录的指标清单（智能去重、基准单位对齐，并附带最新测定数值与健康状态）"""
     user_id = target_user_id if (current_user.is_admin and target_user_id) else current_user.id
-    items = db.query(
-        models.LabItem.item_code,
-        models.LabItem.item_name,
-        models.LabItem.category,
-        models.LabItem.unit
-    ).filter(
+    items = db.query(models.LabItem).filter(
         models.LabItem.user_id == user_id,
         models.LabItem.item_code != None,
         models.LabItem.item_code != ""
-    ).distinct().all()
+    ).order_by(models.LabItem.test_date.desc(), models.LabItem.id.desc()).all()
 
     result = []
     seen = set()
     for it in items:
-        raw_code = it.item_code.strip()
+        raw_code = (it.item_code or "").strip()
         code_upper = raw_code.upper()
         canon = CANONICAL_MAP.get(code_upper, code_upper)
         if canon in seen:
             continue
         seen.add(canon)
         std_unit = STANDARD_UNITS.get(canon, it.unit or "")
+        norm_res = normalize_lab_unit_and_value(
+            item_code=canon,
+            value=it.value,
+            unit=it.unit,
+            ref_min=it.ref_min,
+            ref_max=it.ref_max,
+            ref_range=it.ref_range
+        )
+        status = determine_item_status(norm_res["value"], norm_res["ref_min"], norm_res["ref_max"], it.status)
+        status_label = "正常"
+        if status == "HIGH":
+            status_label = "偏高"
+        elif status == "LOW":
+            status_label = "偏低"
+        elif status == "ABNORMAL":
+            status_label = "异常"
+
         result.append({
             "code": canon,
             "raw_code": raw_code,
             "name": it.item_name or canon,
             "category": it.category or "other",
-            "unit": std_unit
+            "unit": std_unit,
+            "latest_value": norm_res["value"],
+            "raw_value": norm_res["raw_value"],
+            "raw_unit": norm_res["raw_unit"],
+            "is_converted": norm_res["is_converted"],
+            "ref_min": norm_res["ref_min"],
+            "ref_max": norm_res["ref_max"],
+            "ref_range": norm_res["ref_range"] or it.ref_range or "",
+            "status": status,
+            "status_label": status_label,
+            "latest_date": it.test_date or ""
         })
     return result
 
