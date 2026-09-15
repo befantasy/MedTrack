@@ -342,15 +342,16 @@ const ChartsModule = {
       const isFocused = focusedCodes.includes(m.code);
       const displayName = m.name && m.name !== m.code ? `${m.name} (${m.code})` : m.code;
       const statusDotClass = m.status === 'HIGH' ? 'high' : (m.status === 'LOW' ? 'low' : 'normal');
-      const valText = m.latest_value !== null ? `${m.latest_value} ${m.unit || ''}` : '';
+      const valNumber = (m.latest_value !== null && m.latest_value !== undefined) ? `${m.latest_value}` : '';
+      const fullValWithUnit = valNumber ? `${valNumber} ${m.unit || ''}`.trim() : '未测定';
 
       return `
         <div class="metric-pill ${isFocused ? 'active' : ''}"
              onclick="ChartsModule.handlePillClick(event, '${encodeURIComponent(m.code)}', '${encodeURIComponent(m.name || m.code)}')"
-             title="${escapeHtml(displayName)}&#10;最新测定: ${valText || '未测定'}&#10;参考区间: ${escapeHtml(m.ref_range || '未提供')}&#10;提示: 单击快速聚焦，按住 Ctrl/Cmd 单击可同屏对比">
+             title="${escapeHtml(displayName)}&#10;最新测定: ${escapeHtml(fullValWithUnit)}&#10;参考区间: ${escapeHtml(m.ref_range || '未提供')}&#10;提示: 单击快速聚焦，按住 Ctrl/Cmd 单击可同屏对比">
           <span class="pill-status-dot ${statusDotClass}"></span>
           <span class="pill-title">${escapeHtml(displayName)}</span>
-          ${valText ? `<span class="pill-meta" style="font-size:0.75rem; opacity:0.8;">${escapeHtml(valText)}</span>` : ''}
+          ${valNumber ? `<span class="pill-meta" style="font-size:0.75rem; opacity:0.8;">${escapeHtml(valNumber)}</span>` : ''}
         </div>
       `;
     }).join('');
