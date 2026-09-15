@@ -92,15 +92,17 @@ const TimelineModule = {
                         onmouseenter="handleDocDetailMouseEnter(event, '${item.id}')" 
                         onmouseleave="handleDocDetailMouseLeave(event)"
                         title="点击或悬停查看详细数据">${escapeHtml(item.title)}</strong>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
                 <button type="button" class="btn btn-secondary btn-sm doc-detail-trigger" 
                         style="padding:2px 8px; font-size:0.78rem; color:#0284c7; border-color:#bae6fd; background:#f0f9ff; cursor:pointer; display:inline-flex; align-items:center; gap:3px; border-radius:4px; line-height:1.4;"
                         onclick="handleDocDetailClick(event, '${item.id}')"
                         onmouseenter="handleDocDetailMouseEnter(event, '${item.id}')" 
                         onmouseleave="handleDocDetailMouseLeave(event)"
                         title="点击或悬停查看详细数据">📋 详情</button>
-              </div>
-              <div style="font-size:0.85rem; color:#64748b; font-weight:500;">
-                📅 ${item.event_date}
+                <span style="font-size:0.85rem; color:#64748b; font-weight:500; white-space:nowrap;">
+                  📅 ${item.event_date}
+                </span>
               </div>
             </div>
             
