@@ -186,7 +186,7 @@ function formatSummaryWithHighlights(text) {
     result += `<div style="color:#334155; line-height:1.6;">${safe}</div>`;
   }
   if (abnormal) {
-    result += `<div style="margin-top:6px; font-size:0.86rem; color:#991b1b; background:#fef2f2; padding:4px 10px; border-radius:4px; border-left:3px solid #ef4444; border-top:1px solid #fee2e2; border-right:1px solid #fee2e2; border-bottom:1px solid #fee2e2; line-height:1.5;"><strong>⚠️ 异常指标:</strong> <span style="font-weight:600; color:#dc2626;">${abnormal}</span></div>`;
+    result += `<div style="margin-top:6px; font-size:0.86rem; color:#991b1b; background:#fef2f2; padding:4px 10px; border-radius:4px; border-left:3px solid #ef4444; border-top:1px solid #fee2e2; border-right:1px solid #fee2e2; border-bottom:1px solid #fee2e2; line-height:1.5;"><strong>⚠️ 异常指标:</strong> ${abnormal}</div>`;
   }
   if (suggestion) {
     result += `<div style="margin-top:6px; font-size:0.86rem; color:#0369a1; background:#f0f9ff; padding:4px 10px; border-radius:4px; border-left:3px solid #0284c7; border-top:1px solid #e0f2fe; border-right:1px solid #e0f2fe; border-bottom:1px solid #e0f2fe; line-height:1.5;"><strong>💡 建议:</strong> ${suggestion}</div>`;
