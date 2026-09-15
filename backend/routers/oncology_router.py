@@ -245,7 +245,8 @@ def get_full_timeline(
                 "body_part": img.body_part,
                 "findings": img.findings,
                 "impression": img.impression,
-                "target_lesions": img.target_lesions
+                "target_lesions": img.target_lesions,
+                "raw_file_url": img.raw_file_url
             }
         ))
 
@@ -277,7 +278,8 @@ def get_full_timeline(
             details={
                 "hospital": lab.hospital,
                 "abnormal_codes": abnormal_items,
-                "items": items_data
+                "items": items_data,
+                "raw_file_url": lab.raw_file_url
             }
         ))
 
@@ -296,7 +298,8 @@ def get_full_timeline(
                 "sample_site": p.sample_site,
                 "histological_diagnosis": p.histological_diagnosis,
                 "ihc": p.ihc_markers,
-                "gene": p.genetic_testing
+                "gene": p.genetic_testing,
+                "raw_file_url": p.raw_file_url
             }
         ))
 

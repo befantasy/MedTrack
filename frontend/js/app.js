@@ -842,6 +842,13 @@ function showDocHoverPopover(event, docId, isClick = false) {
   }
 
   const hospText = doc.details?.hospital ? ` <span style="font-weight:normal; font-size:0.8rem; color:#64748b;">· ${escapeHtml(doc.details.hospital)}</span>` : '';
+  const fileLinkHtml = doc.details?.raw_file_url ? `
+    <a href="${escapeHtml(doc.details.raw_file_url)}" target="_blank" rel="noopener noreferrer"
+       style="font-size:0.75rem; color:#0284c7; background:#e0f2fe; padding:2px 8px; border-radius:4px; text-decoration:none; display:inline-flex; align-items:center; gap:3px; border:1px solid #bae6fd; font-weight:500;"
+       title="点击在新标签页查看原始上传单据文件">
+      📎 查看原件
+    </a>
+  ` : '';
   const closeBtnHtml = `
     <button type="button" onclick="hideDocHoverPopover(true)" style="background:transparent; border:none; color:#64748b; font-size:1.3rem; cursor:pointer; padding:2px 8px; line-height:1; display:flex; align-items:center;" title="关闭">✕</button>
   `;
@@ -854,6 +861,7 @@ function showDocHoverPopover(event, docId, isClick = false) {
       <div style="font-weight:600; color:#0f172a; font-size:0.92rem; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
         <span>${doc.title}</span>${hospText}
         <span style="font-size:0.75rem; color:#64748b; font-weight:normal;">📅 ${doc.event_date}</span>
+        ${fileLinkHtml}
       </div>
       ${closeBtnHtml}
     </div>

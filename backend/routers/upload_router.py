@@ -2,7 +2,9 @@ import os
 import uuid
 import asyncio
 import io
-from typing import List, Dict, Any
+import re
+from datetime import datetime
+from typing import List, Dict, Any, Tuple
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from PIL import Image
@@ -16,6 +18,50 @@ from services.ai_extractor import ai_extractor
 router = APIRouter(prefix="/upload", tags=["文件上传与AI解析"])
 
 batch_tasks: Dict[str, Dict[str, Any]] = {}
+
+def sanitize_segment(name: str, default: str = "general") -> str:
+    """清理路径段，防止路径穿越及非法字符"""
+    if not name:
+        return default
+    # 替换 Windows/Linux 非法字符: \ / : * ? " < > | 以及 URL 保留字符如 # % &
+    cleaned = re.sub(r'[\\/:*?"<>|#%&]+', '_', str(name)).strip(". ")
+    return cleaned if cleaned else default
+
+def prepare_upload_target(username: str, doc_type: str, original_filename: str) -> Tuple[str, str, str]:
+    """
+    根据 用户名 / 文档类型 / 日期 / 文件名 构建目录结构及访问URL。
+    处理重名情况：如果目标文件已存在，则自动添加递增数字后缀如 (1), (2)...
+    返回: (target_file_path, raw_file_url, final_filename)
+    """
+    safe_user = sanitize_segment(username, default="unknown_user")
+    safe_doc = sanitize_segment(doc_type, default="other")
+    date_str = datetime.now().strftime("%Y-%m-%d")
+
+    # 构建目标子目录: uploads/<username>/<doc_type>/<date>/
+    target_dir = os.path.join(settings.UPLOAD_DIR, safe_user, safe_doc, date_str)
+    os.makedirs(target_dir, exist_ok=True)
+
+    # 提取文件名与后缀
+    base_name = os.path.basename(original_filename or "document")
+    stem, ext = os.path.splitext(base_name)
+    safe_stem = sanitize_segment(stem, default="document")
+    safe_ext = ext.lower()
+
+    # 处理重名：若目标文件已存在，则自动递增数字后缀 (1), (2)...
+    final_filename = f"{safe_stem}{safe_ext}"
+    target_file_path = os.path.join(target_dir, final_filename)
+
+    counter = 1
+    while os.path.exists(target_file_path):
+        final_filename = f"{safe_stem}({counter}){safe_ext}"
+        target_file_path = os.path.join(target_dir, final_filename)
+        counter += 1
+
+    # 生成 URL 访问路径 (统一以 /uploads/ 开头)
+    raw_file_url = f"/uploads/{safe_user}/{safe_doc}/{date_str}/{final_filename}"
+
+    return target_file_path, raw_file_url, final_filename
+
 
 def compress_image_for_ai(file_bytes: bytes) -> bytes:
     """
@@ -119,17 +165,20 @@ async def upload_and_parse_batch(
         if ext not in allowed_extensions:
             continue
         
-        unique_filename = f"{uuid.uuid4().hex}{ext}"
-        file_path = os.path.join(settings.UPLOAD_DIR, unique_filename)
+        file_path, raw_file_url, final_filename = prepare_upload_target(
+            username=current_user.username,
+            doc_type=doc_type,
+            original_filename=file.filename
+        )
         
         file_bytes = await file.read()
         with open(file_path, "wb") as f:
             f.write(file_bytes)
             
         files_info.append({
-            "filename": file.filename,
+            "filename": final_filename,
             "file_path": file_path,
-            "raw_file_url": f"/uploads/{unique_filename}",
+            "raw_file_url": raw_file_url,
             "mime_type": file.content_type or "image/jpeg"
         })
         
@@ -176,14 +225,16 @@ async def upload_and_parse_document(
     if ext not in allowed_extensions:
         raise HTTPException(status_code=400, detail="不支持的文件格式，请上传 JPG, PNG, WEBP 或 PDF 格式文件")
 
-    unique_filename = f"{uuid.uuid4().hex}{ext}"
-    file_path = os.path.join(settings.UPLOAD_DIR, unique_filename)
+    file_path, raw_file_url, final_filename = prepare_upload_target(
+        username=current_user.username,
+        doc_type=doc_type,
+        original_filename=file.filename
+    )
     
     file_bytes = await file.read()
     with open(file_path, "wb") as f:
         f.write(file_bytes)
 
-    raw_file_url = f"/uploads/{unique_filename}"
     mime_type = file.content_type or "image/jpeg"
     
     if mime_type.startswith("image/"):
@@ -197,7 +248,7 @@ async def upload_and_parse_document(
 
     return {
         "success": True,
-        "filename": file.filename,
+        "filename": final_filename,
         "raw_file_url": raw_file_url,
         "doc_type": doc_type,
         "parsed_data": extracted_data
