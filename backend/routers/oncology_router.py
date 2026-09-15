@@ -239,7 +239,14 @@ def get_full_timeline(
             title=f"{img.modality} ({img.body_part or '部位未注'})",
             badge=img.recist_evaluation or "复查",
             summary=img.impression[:80] + ("..." if len(img.impression) > 80 else "") if img.impression else "影像报告",
-            details={"findings": img.findings, "target_lesions": img.target_lesions}
+            details={
+                "hospital": img.hospital,
+                "modality": img.modality,
+                "body_part": img.body_part,
+                "findings": img.findings,
+                "impression": img.impression,
+                "target_lesions": img.target_lesions
+            }
         ))
 
     # 5. 化验检验
@@ -247,6 +254,18 @@ def get_full_timeline(
         item_count = len(lab.items)
         abnormal_items = [it.item_code for it in lab.items if it.status in ("HIGH", "LOW", "ABNORMAL")]
         badge_text = f"{len(abnormal_items)}项异常" if abnormal_items else "指标平稳"
+        items_data = [
+            {
+                "name": it.item_name,
+                "code": it.item_code,
+                "value": it.value,
+                "value_text": it.value_text or (str(it.value) if it.value is not None else ""),
+                "unit": it.unit,
+                "ref_range": it.ref_range,
+                "status": it.status
+            }
+            for it in lab.items
+        ]
         events.append(schemas.TimelineEvent(
             id=f"lab_{lab.id}",
             event_date=lab.report_date,
@@ -255,7 +274,11 @@ def get_full_timeline(
             title=lab.report_type or "化验单",
             badge=badge_text,
             summary=lab.ai_summary or f"共包含 {item_count} 项检验指标",
-            details={"abnormal_codes": abnormal_items}
+            details={
+                "hospital": lab.hospital,
+                "abnormal_codes": abnormal_items,
+                "items": items_data
+            }
         ))
 
     # 6. 病理报告
@@ -265,10 +288,16 @@ def get_full_timeline(
             event_date=p.report_date,
             event_type="pathology",
             category_label="病理/基因",
-            title=f"病理: {p.sample_site or '标本'}",
+            title=f"病理: {p.sample_site or p.sample_type or '标本'}",
             badge=p.differentiation or "病理",
             summary=p.histological_diagnosis[:80] if p.histological_diagnosis else "病理检查报告",
-            details={"ihc": p.ihc_markers, "gene": p.genetic_testing}
+            details={
+                "sample_type": p.sample_type,
+                "sample_site": p.sample_site,
+                "histological_diagnosis": p.histological_diagnosis,
+                "ihc": p.ihc_markers,
+                "gene": p.genetic_testing
+            }
         ))
 
     # 7. 门诊随访与症状记录

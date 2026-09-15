@@ -681,6 +681,192 @@ async function deleteTimelineEvent(type, id) {
 }
 window.deleteTimelineEvent = deleteTimelineEvent;
 
+// ==================== 单据识别管理 (Uploaded Docs) 悬浮数据浮窗 ====================
+let loadedDocsMap = {};
+let hoverPopoverTimer = null;
+let activeHoverDocId = null;
+
+function getDocHoverPopover() {
+  let popover = document.getElementById('doc-hover-popover');
+  if (!popover) {
+    popover = document.createElement('div');
+    popover.id = 'doc-hover-popover';
+    popover.style.cssText = `
+      position: fixed;
+      z-index: 999999;
+      background: #ffffff;
+      border-radius: 10px;
+      box-shadow: 0 20px 40px -8px rgba(15, 23, 42, 0.22), 0 0 0 1px rgba(15, 23, 42, 0.08);
+      max-width: 520px;
+      width: 90vw;
+      max-height: 420px;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      font-size: 0.88rem;
+      color: #1e293b;
+      opacity: 0;
+      transform: translateY(6px);
+      transition: opacity 0.18s ease, transform 0.18s ease;
+      pointer-events: auto;
+    `;
+    popover.onmouseenter = () => {
+      if (hoverPopoverTimer) clearTimeout(hoverPopoverTimer);
+    };
+    popover.onmouseleave = () => {
+      hideDocHoverPopover();
+    };
+    document.body.appendChild(popover);
+  }
+  return popover;
+}
+
+function showDocHoverPopover(event, docId) {
+  if (hoverPopoverTimer) clearTimeout(hoverPopoverTimer);
+  activeHoverDocId = docId;
+  const doc = loadedDocsMap[docId];
+  if (!doc) return;
+
+  const popover = getDocHoverPopover();
+  const triggerEl = event.currentTarget;
+
+  let bodyHtml = '';
+  if (doc.event_type === 'lab') {
+    const items = doc.details?.items || [];
+    if (items.length > 0) {
+      const rows = items.map(it => {
+        let valColor = '#0f172a';
+        let arrow = '';
+        if (it.status === 'HIGH') {
+          valColor = '#ef4444';
+          arrow = ' ↑';
+        } else if (it.status === 'LOW') {
+          valColor = '#f59e0b';
+          arrow = ' ↓';
+        } else if (it.status === 'ABNORMAL') {
+          valColor = '#ef4444';
+        }
+        const valDisp = it.value !== null && it.value !== undefined ? it.value : (it.value_text || '-');
+        return `
+          <tr style="border-bottom:1px solid #f1f5f9;">
+            <td style="padding:6px 10px; font-weight:500; color:#334155;">${escapeHtml(it.name || it.code)}</td>
+            <td style="padding:6px 10px; color:${valColor}; font-weight:600; text-align:right;">${valDisp}${arrow}</td>
+            <td style="padding:6px 10px; color:#64748b; font-size:0.8rem;">${escapeHtml(it.unit || '')}</td>
+            <td style="padding:6px 10px; color:#94a3b8; font-size:0.8rem;">${escapeHtml(it.ref_range || '')}</td>
+          </tr>
+        `;
+      }).join('');
+
+      bodyHtml = `
+        <div style="overflow-y:auto; max-height:320px; padding:0;">
+          <table style="width:100%; border-collapse:collapse; font-size:0.84rem;">
+            <thead>
+              <tr style="background:#f8fafc; color:#64748b; font-size:0.78rem; border-bottom:1px solid #e2e8f0; position:sticky; top:0; z-index:2;">
+                <th style="padding:6px 10px; text-align:left;">指标名称</th>
+                <th style="padding:6px 10px; text-align:right;">测定值</th>
+                <th style="padding:6px 10px; text-align:left;">单位</th>
+                <th style="padding:6px 10px; text-align:left;">参考区间</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    } else {
+      bodyHtml = `<div style="padding:20px; color:#94a3b8; text-align:center;">暂无检验明细数值</div>`;
+    }
+  } else if (doc.event_type === 'imaging') {
+    bodyHtml = `
+      <div style="padding:14px; overflow-y:auto; max-height:300px; line-height:1.5;">
+        <div style="margin-bottom:10px;">
+          <div style="font-weight:600; color:#0284c7; font-size:0.82rem; margin-bottom:4px;">🔍 检查所见 (Findings)</div>
+          <div style="background:#f8fafc; padding:8px 10px; border-radius:6px; font-size:0.85rem; color:#334155;">${escapeHtml(doc.details?.findings || '未记录')}</div>
+        </div>
+        <div>
+          <div style="font-weight:600; color:#0f172a; font-size:0.82rem; margin-bottom:4px;">🩺 诊断结论 (Impression)</div>
+          <div style="background:#f0f9ff; padding:8px 10px; border-radius:6px; font-size:0.85rem; color:#0369a1; border-left:3px solid #0284c7;">${escapeHtml(doc.details?.impression || '未记录')}</div>
+        </div>
+      </div>
+    `;
+  } else if (doc.event_type === 'pathology') {
+    bodyHtml = `
+      <div style="padding:14px; overflow-y:auto; max-height:300px; line-height:1.5;">
+        <div style="margin-bottom:10px;">
+          <div style="font-weight:600; color:#7c3aed; font-size:0.82rem; margin-bottom:4px;">🔬 组织学病理诊断</div>
+          <div style="background:#faf5ff; padding:8px 10px; border-radius:6px; font-size:0.85rem; color:#6b21a8; border-left:3px solid #7c3aed;">${escapeHtml(doc.details?.histological_diagnosis || '未记录')}</div>
+        </div>
+        ${doc.details?.sample_type ? `<div style="font-size:0.83rem; color:#64748b; margin-bottom:6px;"><strong>标本类型:</strong> ${escapeHtml(doc.details.sample_type)}</div>` : ''}
+        ${doc.details?.ihc ? `<div style="font-size:0.83rem; color:#64748b;"><strong>免疫组化 (IHC):</strong> ${escapeHtml(typeof doc.details.ihc === 'object' ? JSON.stringify(doc.details.ihc) : doc.details.ihc)}</div>` : ''}
+      </div>
+    `;
+  }
+
+  const hospText = doc.details?.hospital ? ` <span style="font-weight:normal; font-size:0.8rem; color:#64748b;">· ${escapeHtml(doc.details.hospital)}</span>` : '';
+  const headerHtml = `
+    <div style="background:#f1f5f9; padding:10px 14px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+      <div style="font-weight:600; color:#0f172a;">
+        <span>${doc.title}</span>${hospText}
+      </div>
+      <div style="font-size:0.8rem; color:#64748b;">📅 ${doc.event_date}</div>
+    </div>
+  `;
+
+  popover.innerHTML = headerHtml + bodyHtml;
+  popover.style.display = 'flex';
+
+  // 计算智能定位
+  const rect = triggerEl.getBoundingClientRect();
+  const popoverWidth = Math.min(500, window.innerWidth * 0.9);
+  let left = rect.left;
+  if (left + popoverWidth > window.innerWidth - 16) {
+    left = window.innerWidth - popoverWidth - 16;
+  }
+  if (left < 16) left = 16;
+
+  let top = rect.bottom + 8;
+  if (top + 340 > window.innerHeight && rect.top > 340) {
+    top = rect.top - 340 - 8;
+  }
+
+  popover.style.width = `${popoverWidth}px`;
+  popover.style.left = `${left}px`;
+  popover.style.top = `${top}px`;
+
+  requestAnimationFrame(() => {
+    popover.style.opacity = '1';
+    popover.style.transform = 'translateY(0)';
+  });
+}
+
+function hideDocHoverPopover() {
+  if (hoverPopoverTimer) clearTimeout(hoverPopoverTimer);
+  hoverPopoverTimer = setTimeout(() => {
+    const popover = document.getElementById('doc-hover-popover');
+    if (popover) {
+      popover.style.opacity = '0';
+      popover.style.transform = 'translateY(6px)';
+      setTimeout(() => {
+        if (popover.style.opacity === '0') {
+          popover.style.display = 'none';
+        }
+      }, 180);
+    }
+  }, 120);
+}
+
+function toggleDocHoverPopover(event, docId) {
+  const popover = document.getElementById('doc-hover-popover');
+  if (popover && popover.style.display === 'flex' && activeHoverDocId === docId) {
+    hideDocHoverPopover();
+  } else {
+    showDocHoverPopover(event, docId);
+  }
+}
+
+window.showDocHoverPopover = showDocHoverPopover;
+window.hideDocHoverPopover = hideDocHoverPopover;
+window.toggleDocHoverPopover = toggleDocHoverPopover;
+
 // ==================== 单据识别管理 (Uploaded Docs) ====================
 async function loadUploadedDocs() {
   const container = document.getElementById('uploaded-docs-list');
@@ -692,6 +878,9 @@ async function loadUploadedDocs() {
     const events = await API.getTimeline(targetUserId);
     const docs = events.filter(e => ['lab', 'imaging', 'pathology'].includes(e.event_type));
     
+    loadedDocsMap = {};
+    docs.forEach(d => { loadedDocsMap[d.id] = d; });
+
     if (docs.length === 0) {
       container.innerHTML = '<div style="color:#94a3b8; padding:20px; text-align:center;">暂无已归档的化验单、影像或病理报告记录。</div>';
       return;
@@ -707,20 +896,27 @@ async function loadUploadedDocs() {
     docs.forEach(doc => {
       const cfg = typeConfig[doc.event_type];
       const realId = doc.id.split('_')[1];
+      const hospBadge = doc.details?.hospital ? `<span style="font-size:0.8rem; color:#64748b; background:#f1f5f9; padding:2px 8px; border-radius:4px;">🏥 ${escapeHtml(doc.details.hospital)}</span>` : '';
+      
       html += `
-          <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:14px; border-radius:8px; display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
-            <div style="flex:1; overflow:hidden;">
-              <div style="margin-bottom:6px;">
-                <span style="margin-right:6px;">${cfg.icon}</span>
-                <span class="badge ${cfg.badge}" style="margin-right:8px;">${cfg.name}</span>
-                <strong style="color:#0f172a;">${escapeHtml(doc.title)}</strong>
-                <span style="font-size:0.85rem; color:#64748b; margin-left:8px;">📅 ${doc.event_date}</span>
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:14px; border-radius:8px; display:flex; justify-content:space-between; align-items:flex-start; gap:12px; transition:box-shadow 0.2s, border-color 0.2s;">
+            <div style="flex:1; overflow:hidden; cursor:pointer;" 
+                 onmouseenter="showDocHoverPopover(event, '${doc.id}')" 
+                 onmouseleave="hideDocHoverPopover()"
+                 onclick="toggleDocHoverPopover(event, '${doc.id}')">
+              <div style="margin-bottom:6px; display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
+                <span style="margin-right:2px;">${cfg.icon}</span>
+                <span class="badge ${cfg.badge}">${cfg.name}</span>
+                <strong style="color:#0f172a; font-size:0.95rem;">${escapeHtml(doc.title)}</strong>
+                <span style="font-size:0.85rem; color:#64748b;">📅 ${doc.event_date}</span>
+                ${hospBadge}
+                <span class="badge" style="font-size:0.75rem; background:#eff6ff; color:#0284c7; border:1px solid #bfdbfe;" title="鼠标悬停或点击即可浮动显示具体测定数值">📊 悬停查明细</span>
               </div>
               <div style="font-size:0.9rem; color:#475569; line-height:1.4;">${escapeHtml(doc.summary)}</div>
             </div>
             <div style="display:flex; flex-direction:column; gap:8px; flex-shrink:0;">
               <button class="btn btn-secondary btn-sm" style="color:#0284c7; border-color:#bae6fd; background:#f0f9ff;" onclick="openEditDocModal('${doc.event_type}', ${realId})">✏️ 编辑校对</button>
-<button class="btn btn-secondary btn-sm" style="color:#ef4444; border-color:#fee2e2; background:#fef2f2;" onclick="deleteUploadedDoc('${doc.event_type}', ${realId})">🗑️ 删除</button>
+              <button class="btn btn-secondary btn-sm" style="color:#ef4444; border-color:#fee2e2; background:#fef2f2;" onclick="deleteUploadedDoc('${doc.event_type}', ${realId})">🗑️ 删除</button>
             </div>
           </div>
         `;
