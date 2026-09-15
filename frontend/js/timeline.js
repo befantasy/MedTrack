@@ -119,9 +119,10 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+// 异常摘要标红高亮与结构化展示辅助函数 (客观陈述 + 异常指标单列 + 建议单列)
 function formatSummaryWithHighlights(text) {
   if (!text) return '';
-  let safe = escapeHtml(text);
+  let safe = escapeHtml(text).trim();
 
   // 1. 提取并分离建议部分 (如果存在)
   let suggestion = null;
@@ -133,41 +134,65 @@ function formatSummaryWithHighlights(text) {
     safe = safe.replace(/[；;。，, ]+$/, '');
   }
 
-  // 2. 识别并高亮异常指标部分 (整体标红加粗，避免切碎数值及小数位)
-  const abnormalBlockRegex = /(【异常指标】|异常指标[:：])\s*([\s\S]*?)(?=(?:[;；。]\s*(?:其余|各项|未见)|$|[;；。]\s*【))/;
-  if (abnormalBlockRegex.test(safe)) {
-    safe = safe.replace(abnormalBlockRegex, (match, prefix, content) => {
-      return `<strong style="color:#dc2626;">${prefix} </strong><span style="color:#dc2626; font-weight:600;">${content}</span>`;
-    });
-  } else {
-    // 兼容没有 "异常指标:" 显式前缀的自由文本或旧数据
-    const abnormalKeywords = /(↑|↓|偏高|偏低|轻度偏高|明显偏高|异常|阳性|强阳性|弱阳性|突变|超出参考|转移|进展|恶性)/;
-    const normalExclusions = /(均在正常|未见异常|正常参考|正常范围|阴性\(-?\))/;
+  // 2. 识别并提取异常指标部分 (单列成独立红色提醒卡片)
+  let abnormal = null;
+  const abnormalKw = /(↑|↓|偏高|偏低|轻度偏高|明显偏高|异常|阳性|强阳性|弱阳性|突变|超出参考|转移|进展|恶性)/;
+  const normalExclusions = /^(?:无|未见异常|正常参考|正常范围|阴性\(-?\)|未见异常指标|各项均在正常范围|未见特殊异常)[。；;\s]*$/;
 
-    // 避免在数字小数位切分
-    const segments = safe.split(/([；;。]|\b(?<!\d)[,，](?!\d))/);
-    let newSegs = [];
-    for (let i = 0; i < segments.length; i++) {
-      const seg = segments[i];
-      if (abnormalKeywords.test(seg) && !normalExclusions.test(seg)) {
-        newSegs.push(`<span style="color:#dc2626; font-weight:600;">${seg}</span>`);
-      } else {
-        newSegs.push(seg);
+  const abnRegex = /(?:【异常指标】|【异常指标提示】|异常指标[:：]|异常指标提示[:：])\s*([\s\S]+)$/;
+  const abnMatch = safe.match(abnRegex);
+
+  if (abnMatch && abnormalKw.test(abnMatch[1]) && !normalExclusions.test(abnMatch[1].trim())) {
+    abnormal = abnMatch[1].trim();
+    safe = safe.slice(0, abnMatch.index).trim().replace(/[；;。，, ]+$/, '');
+
+    // 如果异常指标后面跟着“；其余指标均在正常参考范围内”，将该句移回客观陈述
+    const trailingNormal = abnormal.match(/[；;。，, ]+((?:其余|各项|其他)[\s\S]*?均在正常[\s\S]*)$/);
+    if (trailingNormal) {
+      const normalTail = trailingNormal[1].trim();
+      abnormal = abnormal.slice(0, trailingNormal.index).trim().replace(/[；;。，, ]+$/, '');
+      safe = safe ? (safe + '；' + normalTail) : normalTail;
+    }
+  } else if (!abnMatch) {
+    // 兼容没有明确前缀的历史/自由文本
+    if (abnormalKw.test(safe)) {
+      const sentences = safe.split(/(?<=[。；;])\s*/);
+      const normalParts = [];
+      const abnormalParts = [];
+      const normalPhrase = /(均在正常|未见异常|正常参考|正常范围|阴性\(-?\))/;
+      for (const s of sentences) {
+        if (abnormalKw.test(s) && !normalPhrase.test(s)) {
+          abnormalParts.push(s.trim());
+        } else if (s.trim()) {
+          normalParts.push(s.trim());
+        }
+      }
+      if (abnormalParts.length > 0) {
+        abnormal = abnormalParts.join(' ');
+        safe = normalParts.join(' ');
       }
     }
-    safe = newSegs.join('');
   }
 
-  // 3. 格式化客观总结标题
-  safe = safe.replace(/【客观总结】[:：]?/g, '<strong style="color:#0f172a;">【客观总结】</strong> ');
-  safe = safe.replace(/客观总结[:：]/g, '<strong style="color:#0f172a;">客观总结: </strong>');
+  // 3. 清理客观总结陈述标题与前缀
+  safe = safe.replace(/^【客观总结(?:陈述)?】[:：]?\s*/g, '');
+  safe = safe.replace(/【客观总结(?:陈述)?】[:：]?/g, '');
+  safe = safe.replace(/^客观总结(?:陈述)?[:：]\s*/g, '');
+  safe = safe.trim();
 
-  let result = `<div>${safe}</div>`;
+  // 4. 组装展示 HTML (客观总结陈述 + 异常指标单列 + 建议单列)
+  let result = '';
+  if (safe) {
+    result += `<div style="color:#334155; line-height:1.6;">${safe}</div>`;
+  }
+  if (abnormal) {
+    result += `<div style="margin-top:6px; font-size:0.86rem; color:#991b1b; background:#fef2f2; padding:4px 10px; border-radius:4px; border-left:3px solid #ef4444; border-top:1px solid #fee2e2; border-right:1px solid #fee2e2; border-bottom:1px solid #fee2e2; line-height:1.5;"><strong>⚠️ 异常指标:</strong> <span style="font-weight:600; color:#dc2626;">${abnormal}</span></div>`;
+  }
   if (suggestion) {
-    result += `<div style="margin-top:6px; font-size:0.86rem; color:#0369a1; background:#f0f9ff; padding:3px 8px; border-radius:4px; border-left:3px solid #0284c7; display:block; width:fit-content; max-width:100%;">💡 <strong>建议:</strong> ${suggestion}</div>`;
+    result += `<div style="margin-top:6px; font-size:0.86rem; color:#0369a1; background:#f0f9ff; padding:4px 10px; border-radius:4px; border-left:3px solid #0284c7; border-top:1px solid #e0f2fe; border-right:1px solid #e0f2fe; border-bottom:1px solid #e0f2fe; line-height:1.5;"><strong>💡 建议:</strong> ${suggestion}</div>`;
   }
 
-  return result;
+  return result || `<div>${safe}</div>`;
 }
 
 window.escapeHtml = escapeHtml;
