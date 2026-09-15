@@ -38,13 +38,15 @@ for group in ALIAS_GROUPS:
         ALIAS_MAP[upper_alias] = [a.upper() for a in group]
         CANONICAL_MAP[upper_alias] = canonical
 
+from services.unit_converter import normalize_lab_unit_and_value, STANDARD_UNITS
+
 @router.get("/available-metrics")
 def get_available_metrics(
     target_user_id: int = None,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """获取指定用户所有已记录的指标清单（智能去重与归一化）"""
+    """获取指定用户所有已记录的指标清单（智能去重与基准单位对齐）"""
     user_id = target_user_id if (current_user.is_admin and target_user_id) else current_user.id
     items = db.query(
         models.LabItem.item_code,
@@ -66,12 +68,13 @@ def get_available_metrics(
         if canon in seen:
             continue
         seen.add(canon)
+        std_unit = STANDARD_UNITS.get(canon, it.unit or "")
         result.append({
             "code": canon,
             "raw_code": raw_code,
             "name": it.item_name or canon,
             "category": it.category or "other",
-            "unit": it.unit or ""
+            "unit": std_unit
         })
     return result
 
@@ -83,7 +86,7 @@ def get_chart_series(
     db: Session = Depends(get_db)
 ):
     """
-    根据指定指标代码集合，返回标准 ECharts 时序数据集（支持别名智能关联与归一化）
+    根据指定指标代码集合，返回标准 ECharts 时序数据集（支持别名智能关联与医疗单位自动归一化）
     """
     user_id = target_user_id if (current_user.is_admin and target_user_id) else current_user.id
     code_list = [c.strip().upper() for c in codes.split(",") if c.strip()]
@@ -113,30 +116,55 @@ def get_chart_series(
 
     # 构造每个指标的序列数据
     series_map = {}
+    raw_vals_map = {}
+    raw_units_map = {}
+    converted_flags_map = {}
     info_map = {}
 
     for c in code_list:
         series_map[c] = {d: None for d in dates}
+        raw_vals_map[c] = {d: None for d in dates}
+        raw_units_map[c] = {d: None for d in dates}
+        converted_flags_map[c] = {d: False for d in dates}
 
     for it in items:
         raw_c = (it.item_code or "").upper().strip()
         canon_c = code_to_canonical.get(raw_c, it.item_code)
         if canon_c in series_map:
-            series_map[canon_c][it.test_date] = it.value
+            norm_res = normalize_lab_unit_and_value(
+                item_code=canon_c,
+                value=it.value,
+                unit=it.unit,
+                ref_min=it.ref_min,
+                ref_max=it.ref_max,
+                ref_range=it.ref_range
+            )
+            series_map[canon_c][it.test_date] = norm_res["value"]
+            raw_vals_map[canon_c][it.test_date] = norm_res["raw_value"]
+            raw_units_map[canon_c][it.test_date] = norm_res["raw_unit"]
+            converted_flags_map[canon_c][it.test_date] = norm_res["is_converted"]
+
             if canon_c not in info_map:
                 info_map[canon_c] = {
                     "name": it.item_name,
-                    "unit": it.unit,
-                    "ref_min": it.ref_min,
-                    "ref_max": it.ref_max,
-                    "ref_range": it.ref_range,
+                    "unit": norm_res["unit"],
+                    "ref_min": norm_res["ref_min"],
+                    "ref_max": norm_res["ref_max"],
+                    "ref_range": norm_res["ref_range"],
                     "category": it.category
                 }
+            elif norm_res["ref_max"] is not None and info_map[canon_c]["ref_max"] is None:
+                info_map[canon_c]["ref_min"] = norm_res["ref_min"]
+                info_map[canon_c]["ref_max"] = norm_res["ref_max"]
+                info_map[canon_c]["ref_range"] = norm_res["ref_range"]
 
     series_data = []
     for c in code_list:
         if c in info_map:
             val_list = [series_map[c][d] for d in dates]
+            raw_val_list = [raw_vals_map[c][d] for d in dates]
+            raw_unit_list = [raw_units_map[c][d] for d in dates]
+            converted_list = [converted_flags_map[c][d] for d in dates]
             series_data.append({
                 "code": c,
                 "name": info_map[c]["name"],
@@ -145,7 +173,10 @@ def get_chart_series(
                 "ref_max": info_map[c]["ref_max"],
                 "ref_range": info_map[c]["ref_range"],
                 "category": info_map[c]["category"],
-                "data": val_list
+                "data": val_list,
+                "raw_values": raw_val_list,
+                "raw_units": raw_unit_list,
+                "converted_flags": converted_list
             })
 
     return {

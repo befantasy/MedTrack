@@ -2,6 +2,7 @@ import json
 from typing import Dict, Any, List
 from sqlalchemy.orm import Session
 import models
+from services.unit_converter import normalize_lab_unit_and_value
 
 class ReportGeneratorService:
     """肿瘤全病程 MDT 多学科门诊就诊报告生成引擎"""
@@ -75,20 +76,35 @@ class ReportGeneratorService:
         indicator_groups = {}
         for it in items_in_dates:
             canon = get_canonical_code(it.item_code)
+            norm_res = normalize_lab_unit_and_value(
+                item_code=canon,
+                value=it.value,
+                unit=it.unit,
+                ref_min=it.ref_min,
+                ref_max=it.ref_max,
+                ref_range=it.ref_range
+            )
             if canon not in indicator_groups:
                 indicator_groups[canon] = {
                     "code": it.item_code,
                     "name": it.item_name or it.item_code,
                     "category": it.category or "other",
-                    "unit": it.unit or "",
-                    "ref_range": it.ref_range or (f"{it.ref_min}-{it.ref_max}" if it.ref_min is not None and it.ref_max is not None else ""),
+                    "unit": norm_res["unit"] or it.unit or "",
+                    "ref_range": norm_res["ref_range"] or it.ref_range or (f"{it.ref_min}-{it.ref_max}" if it.ref_min is not None and it.ref_max is not None else ""),
                     "has_abnormal": False,
                     "date_map": {}
                 }
             if it.status in ("HIGH", "LOW", "ABNORMAL"):
                 indicator_groups[canon]["has_abnormal"] = True
             
-            indicator_groups[canon]["date_map"][it.test_date] = it
+            indicator_groups[canon]["date_map"][it.test_date] = {
+                "val": norm_res["value"],
+                "val_text": str(norm_res["value"]) if norm_res["value"] is not None else (it.value_text or "-"),
+                "status": it.status if it else "NORMAL",
+                "is_converted": norm_res["is_converted"],
+                "raw_value": norm_res["raw_value"],
+                "raw_unit": norm_res["raw_unit"]
+            }
 
         # 临床优先级排序：1. 肿瘤标志物 2. 异常指标 3. 毒副器官指标 4. 慢病指标 5. 其他
         def sort_priority(item_info):
@@ -110,12 +126,15 @@ class ReportGeneratorService:
             date_map = info["date_map"]
             values = []
             for d in recent_dates:
-                it = date_map.get(d)
+                entry = date_map.get(d)
                 values.append({
                     "date": d,
-                    "val": it.value if it else None,
-                    "val_text": it.value_text if it else "-",
-                    "status": it.status if it else "NORMAL"
+                    "val": entry["val"] if entry else None,
+                    "val_text": entry["val_text"] if entry else "-",
+                    "status": entry["status"] if entry else "NORMAL",
+                    "is_converted": entry.get("is_converted", False) if entry else False,
+                    "raw_value": entry.get("raw_value") if entry else None,
+                    "raw_unit": entry.get("raw_unit") if entry else ""
                 })
             indicator_comparison.append({
                 "code": info["code"],

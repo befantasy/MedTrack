@@ -80,6 +80,10 @@ const ChartsModule = {
 
   processSeriesData(s) {
     if (!s.data || !s.data.length) return [];
+    const rawVals = s.raw_values || [];
+    const rawUnits = s.raw_units || [];
+    const convertedFlags = s.converted_flags || [];
+
     return s.data.map((val, idx) => {
       if (val === null || val === undefined) return val;
       
@@ -103,11 +107,19 @@ const ChartsModule = {
       if (isHigh) color = '#ef4444';
       else if (isLow) color = '#f59e0b';
 
+      const isConverted = !!convertedFlags[idx];
+      const rawVal = rawVals[idx];
+      const rawUnit = rawUnits[idx];
+
       return {
         value: val,
         isHigh,
         isLow,
         trend,
+        isConverted,
+        rawValue: rawVal,
+        rawUnit: rawUnit,
+        unit: s.unit || '',
         itemStyle: { color: color }
       };
     });
@@ -252,7 +264,8 @@ const ChartsModule = {
                 const val = dataObj.value;
                 const trendTag = dataObj.trend ? ` <strong style="color:${dataObj.trend==='↑'?'#ef4444':'#10b981'}">${dataObj.trend}</strong>` : '';
                 const abnTag = dataObj.isHigh ? ' <span style="color:#ef4444;font-size:0.8rem">(高)</span>' : (dataObj.isLow ? ' <span style="color:#f59e0b;font-size:0.8rem">(低)</span>' : '');
-                res += `<div>${p.marker} 测定值: <strong style="color:${dataObj.itemStyle.color}">${val}</strong> ${s.unit || ''}${abnTag}${trendTag}</div>`;
+                const convTag = dataObj.isConverted ? ` <span style="font-size:0.75rem; color:#0284c7; background:rgba(2,132,199,0.1); padding:1px 6px; border-radius:4px; margin-left:4px;" title="原始单据数值: ${dataObj.rawValue} ${dataObj.rawUnit}">🔄原单: ${dataObj.rawValue} ${dataObj.rawUnit}</span>` : '';
+                res += `<div>${p.marker} 测定值: <strong style="color:${dataObj.itemStyle.color}">${val}</strong> ${s.unit || ''}${abnTag}${trendTag}${convTag}</div>`;
               }
             });
             if (s.ref_range) {
@@ -384,9 +397,11 @@ const ChartsModule = {
                 res += `<div>${p.marker} ${p.seriesName}: <strong>未测定</strong></div>`;
               } else {
                 const val = dataObj.value;
+                const unitStr = dataObj.unit ? ` ${dataObj.unit}` : '';
                 const trendTag = dataObj.trend ? ` <strong style="color:${dataObj.trend==='↑'?'#ef4444':'#10b981'}">${dataObj.trend}</strong>` : '';
                 const abnTag = dataObj.isHigh ? ' <span style="color:#ef4444;font-size:0.8rem">(高)</span>' : (dataObj.isLow ? ' <span style="color:#f59e0b;font-size:0.8rem">(低)</span>' : '');
-                res += `<div>${p.marker} ${p.seriesName}: <strong style="color:${dataObj.itemStyle.color}">${val}</strong>${abnTag}${trendTag}</div>`;
+                const convTag = dataObj.isConverted ? ` <span style="font-size:0.75rem; color:#0284c7; background:rgba(2,132,199,0.1); padding:1px 6px; border-radius:4px; margin-left:4px;" title="原始单据数值: ${dataObj.rawValue} ${dataObj.rawUnit}">🔄原单: ${dataObj.rawValue} ${dataObj.rawUnit}</span>` : '';
+                res += `<div>${p.marker} ${p.seriesName}: <strong style="color:${dataObj.itemStyle.color}">${val}</strong>${unitStr}${abnTag}${trendTag}${convTag}</div>`;
               }
             });
             return res;
@@ -477,9 +492,11 @@ const ChartsModule = {
                 res += `<div>${p.marker} ${p.seriesName}: <strong>未测定</strong></div>`;
               } else {
                 const val = dataObj.value;
+                const unitStr = dataObj.unit ? ` ${dataObj.unit}` : '';
                 const trendTag = dataObj.trend ? ` <strong style="color:${dataObj.trend==='↑'?'#ef4444':'#10b981'}">${dataObj.trend}</strong>` : '';
                 const abnTag = dataObj.isHigh ? ' <span style="color:#ef4444;font-size:0.8rem">(高)</span>' : (dataObj.isLow ? ' <span style="color:#f59e0b;font-size:0.8rem">(低)</span>' : '');
-                res += `<div>${p.marker} ${p.seriesName}: <strong style="color:${dataObj.itemStyle.color}">${val}</strong>${abnTag}${trendTag}</div>`;
+                const convTag = dataObj.isConverted ? ` <span style="font-size:0.75rem; color:#0284c7; background:rgba(2,132,199,0.1); padding:1px 6px; border-radius:4px; margin-left:4px;" title="原始单据数值: ${dataObj.rawValue} ${dataObj.rawUnit}">🔄原单: ${dataObj.rawValue} ${dataObj.rawUnit}</span>` : '';
+                res += `<div>${p.marker} ${p.seriesName}: <strong style="color:${dataObj.itemStyle.color}">${val}</strong>${unitStr}${abnTag}${trendTag}${convTag}</div>`;
               }
             });
             return res;
@@ -570,9 +587,11 @@ const ChartsModule = {
                 res += `<div>${p.marker} ${p.seriesName}: <strong>未测定</strong></div>`;
               } else {
                 const val = dataObj.value;
+                const unitStr = dataObj.unit ? ` ${dataObj.unit}` : '';
                 const trendTag = dataObj.trend ? ` <strong style="color:${dataObj.trend==='↑'?'#ef4444':'#10b981'}">${dataObj.trend}</strong>` : '';
                 const abnTag = dataObj.isHigh ? ' <span style="color:#ef4444;font-size:0.8rem">(高)</span>' : (dataObj.isLow ? ' <span style="color:#f59e0b;font-size:0.8rem">(低)</span>' : '');
-                res += `<div>${p.marker} ${p.seriesName}: <strong style="color:${dataObj.itemStyle.color}">${val}</strong>${abnTag}${trendTag}</div>`;
+                const convTag = dataObj.isConverted ? ` <span style="font-size:0.75rem; color:#0284c7; background:rgba(2,132,199,0.1); padding:1px 6px; border-radius:4px; margin-left:4px;" title="原始单据数值: ${dataObj.rawValue} ${dataObj.rawUnit}">🔄原单: ${dataObj.rawValue} ${dataObj.rawUnit}</span>` : '';
+                res += `<div>${p.marker} ${p.seriesName}: <strong style="color:${dataObj.itemStyle.color}">${val}</strong>${unitStr}${abnTag}${trendTag}${convTag}</div>`;
               }
             });
             return res;
