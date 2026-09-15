@@ -67,11 +67,6 @@ const TimelineModule = {
       
       let extraHtml = '';
       if (item.details) {
-        if (item.details.abnormal_codes && item.details.abnormal_codes.length > 0) {
-          extraHtml += `<div style="margin-top:6px; font-size:0.82rem; color:#ef4444;">
-            异常指标提示: <strong>${item.details.abnormal_codes.join(', ')}</strong>
-          </div>`;
-        }
         if (item.details.recist) {
           extraHtml += `<div style="margin-top:4px; font-size:0.84rem; color:#0d9488;">
             RECIST疗效: <strong>${item.details.recist}</strong>

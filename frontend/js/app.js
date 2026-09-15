@@ -979,37 +979,22 @@ function showDocHoverPopover(event, docId, isClick = false) {
       popover.classList.add('sheet-show');
     });
   } else {
-    // 电脑桌面端模式：左右居中、上下就近、且不超出屏幕
+    // 电脑桌面端模式：上下左右全居中，免除随鼠标/卡片位置上下跳动
     popover.className = '';
     popover.removeAttribute('style');
     popover.style.display = 'flex';
-    popover.style.visibility = 'hidden';
-    popover.style.opacity = '0';
+    popover.style.top = '50%';
     popover.style.left = '50%';
-    popover.style.transform = 'translateX(-50%)';
+    popover.style.transform = 'translate(-50%, -50%)';
+    popover.style.opacity = '0';
 
-    // 动态获取浮窗实际内容高度
-    const popoverHeight = popover.offsetHeight || 260;
-    const rect = triggerEl ? triggerEl.getBoundingClientRect() : { top: 200, bottom: 230 };
-
-    // 上下就近算法：
-    // 优先紧贴触发卡片下方 8px
-    let top = rect.bottom + 8;
-    // 如果下方溢出屏幕底部
-    if (top + popoverHeight > window.innerHeight - 14) {
-      // 尝试就近放置在上方
-      const topAbove = rect.top - popoverHeight - 8;
-      if (topAbove >= 14) {
-        top = topAbove;
-      } else {
-        // 如果上方下方都挤，则吸附在屏幕可视区内
-        top = Math.max(14, window.innerHeight - popoverHeight - 14);
-      }
+    if (isPopoverPinned) {
+      overlay.style.display = 'block';
+      requestAnimationFrame(() => {
+        overlay.style.opacity = '1';
+      });
     }
 
-    popover.style.top = `${top}px`;
-    popover.style.visibility = 'visible';
-    
     requestAnimationFrame(() => {
       popover.style.opacity = '1';
     });
