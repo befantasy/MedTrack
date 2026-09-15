@@ -681,20 +681,32 @@ async function deleteTimelineEvent(type, id) {
 }
 window.deleteTimelineEvent = deleteTimelineEvent;
 
-// ==================== 单据识别管理 (Uploaded Docs) 悬浮数据浮窗 ====================
 // ==================== 单据识别管理 (Uploaded Docs) 详情浮窗与移动端抽屉 ====================
 let loadedDocsMap = {};
 let hoverPopoverTimer = null;
 let activeHoverDocId = null;
 let isPopoverPinned = false;
 
+function isMobileDevice() {
+  const isMobileUA = /iPhone|iPad|iPod|Android.*Mobile|Mobile|Silk|BlackBerry/i.test(navigator.userAgent);
+  const isSmallScreen = window.innerWidth <= 768;
+  return isMobileUA || isSmallScreen;
+}
+
 function getDocHoverOverlay() {
   let overlay = document.getElementById('doc-hover-overlay');
   if (!overlay) {
     overlay = document.createElement('div');
     overlay.id = 'doc-hover-overlay';
-    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.45); z-index:999998; backdrop-filter:blur(2px); opacity:0; transition:opacity 0.2s ease; display:none;';
-    overlay.onclick = () => hideDocHoverPopover(true);
+    overlay.onclick = (e) => {
+      e.stopPropagation();
+      hideDocHoverPopover(true);
+    };
+    overlay.ontouchend = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      hideDocHoverPopover(true);
+    };
     document.body.appendChild(overlay);
   }
   return overlay;
@@ -709,7 +721,7 @@ function getDocHoverPopover() {
       if (hoverPopoverTimer) clearTimeout(hoverPopoverTimer);
     };
     popover.onmouseleave = () => {
-      if (!isPopoverPinned) {
+      if (!isPopoverPinned && !isMobileDevice()) {
         hideDocHoverPopover(false);
       }
     };
@@ -718,7 +730,7 @@ function getDocHoverPopover() {
     // 全局点击空白处关闭已锁定的详情浮窗
     document.addEventListener('click', (e) => {
       if (isPopoverPinned && popover.style.display === 'flex') {
-        if (!popover.contains(e.target) && !e.target.closest('.doc-detail-tag')) {
+        if (!popover.contains(e.target) && !e.target.closest('.doc-detail-trigger') && !e.target.closest('.doc-detail-tag')) {
           hideDocHoverPopover(true);
         }
       }
@@ -732,12 +744,12 @@ function showDocHoverPopover(event, docId, isClick = false) {
   const doc = loadedDocsMap[docId];
   if (!doc) return;
 
-  const isMobile = window.innerWidth <= 768;
+  const mobile = isMobileDevice();
   const popover = getDocHoverPopover();
   const overlay = getDocHoverOverlay();
-  const triggerEl = event.currentTarget;
+  const triggerEl = event ? event.currentTarget : null;
 
-  if (isClick) {
+  if (isClick || mobile) {
     isPopoverPinned = true;
   }
 
@@ -771,7 +783,7 @@ function showDocHoverPopover(event, docId, isClick = false) {
       }).join('');
 
       bodyHtml = `
-        <div style="overflow-y:auto; -webkit-overflow-scrolling:touch; max-height:${isMobile ? '55vh' : '320px'}; padding:0;">
+        <div style="overflow-y:auto; -webkit-overflow-scrolling:touch; max-height:${mobile ? '58vh' : '320px'}; padding:0;">
           <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
             <thead>
               <tr style="background:#f8fafc; color:#64748b; font-size:0.78rem; border-bottom:1px solid #e2e8f0; position:sticky; top:0; z-index:2;">
@@ -790,7 +802,7 @@ function showDocHoverPopover(event, docId, isClick = false) {
     }
   } else if (doc.event_type === 'imaging') {
     bodyHtml = `
-      <div style="padding:16px; overflow-y:auto; -webkit-overflow-scrolling:touch; max-height:${isMobile ? '55vh' : '320px'}; line-height:1.6;">
+      <div style="padding:16px; overflow-y:auto; -webkit-overflow-scrolling:touch; max-height:${mobile ? '58vh' : '320px'}; line-height:1.6;">
         <div style="margin-bottom:12px;">
           <div style="font-weight:600; color:#0284c7; font-size:0.84rem; margin-bottom:4px;">🔍 检查所见 (Findings)</div>
           <div style="background:#f8fafc; padding:10px 12px; border-radius:8px; font-size:0.88rem; color:#334155; border:1px solid #e2e8f0;">${escapeHtml(doc.details?.findings || '未记录')}</div>
@@ -803,7 +815,7 @@ function showDocHoverPopover(event, docId, isClick = false) {
     `;
   } else if (doc.event_type === 'pathology') {
     bodyHtml = `
-      <div style="padding:16px; overflow-y:auto; -webkit-overflow-scrolling:touch; max-height:${isMobile ? '55vh' : '320px'}; line-height:1.6;">
+      <div style="padding:16px; overflow-y:auto; -webkit-overflow-scrolling:touch; max-height:${mobile ? '58vh' : '320px'}; line-height:1.6;">
         <div style="margin-bottom:12px;">
           <div style="font-weight:600; color:#7c3aed; font-size:0.84rem; margin-bottom:4px;">🔬 组织学病理诊断</div>
           <div style="background:#faf5ff; padding:10px 12px; border-radius:8px; font-size:0.88rem; color:#6b21a8; border-left:3px solid #7c3aed; border-top:1px solid #f3e8ff; border-right:1px solid #f3e8ff; border-bottom:1px solid #f3e8ff;">${escapeHtml(doc.details?.histological_diagnosis || '未记录')}</div>
@@ -816,15 +828,15 @@ function showDocHoverPopover(event, docId, isClick = false) {
 
   const hospText = doc.details?.hospital ? ` <span style="font-weight:normal; font-size:0.8rem; color:#64748b;">· ${escapeHtml(doc.details.hospital)}</span>` : '';
   const closeBtnHtml = `
-    <button type="button" onclick="hideDocHoverPopover(true)" style="background:transparent; border:none; color:#94a3b8; font-size:1.2rem; cursor:pointer; padding:0 4px; line-height:1; display:flex; align-items:center;" title="关闭">✕</button>
+    <button type="button" onclick="hideDocHoverPopover(true)" style="background:transparent; border:none; color:#64748b; font-size:1.3rem; cursor:pointer; padding:2px 8px; line-height:1; display:flex; align-items:center;" title="关闭">✕</button>
   `;
 
-  const dragBarHtml = isMobile ? `<div style="width:40px; height:4px; background:#cbd5e1; border-radius:2px; margin:8px auto 2px auto;"></div>` : '';
+  const dragBarHtml = mobile ? `<div style="width:40px; height:4px; background:#cbd5e1; border-radius:2px; margin:8px auto 2px auto;"></div>` : '';
 
   const headerHtml = `
     ${dragBarHtml}
     <div style="background:#f8fafc; padding:10px 14px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
-      <div style="font-weight:600; color:#0f172a; font-size:0.92rem; display:flex; align-items:center; gap:6px;">
+      <div style="font-weight:600; color:#0f172a; font-size:0.92rem; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
         <span>${doc.title}</span>${hospText}
         <span style="font-size:0.75rem; color:#64748b; font-weight:normal;">📅 ${doc.event_date}</span>
       </div>
@@ -834,40 +846,56 @@ function showDocHoverPopover(event, docId, isClick = false) {
 
   popover.innerHTML = headerHtml + bodyHtml;
 
-  if (isMobile) {
+  if (mobile) {
+    // 手机端模式 (iPhone 16 Pro Max 及各类触屏终端)
+    popover.removeAttribute('style');
     popover.className = 'mobile-sheet';
-    overlay.style.display = 'block';
     popover.style.display = 'flex';
+    
+    overlay.style.display = 'block';
+    
+    // 强制触发回流以确保 iOS Safari 注册 transform: translateY(100%) 起始状态
+    void popover.offsetHeight;
+
+    // 触发重绘并平滑滑出
     requestAnimationFrame(() => {
       overlay.style.opacity = '1';
       popover.classList.add('sheet-show');
     });
   } else {
+    // 电脑桌面端模式：左右居中、上下就近、且不超出屏幕
     popover.className = '';
+    popover.removeAttribute('style');
     popover.style.display = 'flex';
+    popover.style.visibility = 'hidden';
+    popover.style.opacity = '0';
+    popover.style.left = '50%';
+    popover.style.transform = 'translateX(-50%)';
 
-    // 紧密贴合触发元素下方 2px，消除鼠标滑向浮窗时的距离断层
-    const rect = triggerEl.getBoundingClientRect();
-    const popoverWidth = Math.min(520, window.innerWidth - 32);
-    
-    let left = rect.left;
-    if (left + popoverWidth > window.innerWidth - 16) {
-      left = window.innerWidth - popoverWidth - 16;
+    // 动态获取浮窗实际内容高度
+    const popoverHeight = popover.offsetHeight || 260;
+    const rect = triggerEl ? triggerEl.getBoundingClientRect() : { top: 200, bottom: 230 };
+
+    // 上下就近算法：
+    // 优先紧贴触发卡片下方 8px
+    let top = rect.bottom + 8;
+    // 如果下方溢出屏幕底部
+    if (top + popoverHeight > window.innerHeight - 14) {
+      // 尝试就近放置在上方
+      const topAbove = rect.top - popoverHeight - 8;
+      if (topAbove >= 14) {
+        top = topAbove;
+      } else {
+        // 如果上方下方都挤，则吸附在屏幕可视区内
+        top = Math.max(14, window.innerHeight - popoverHeight - 14);
+      }
     }
-    if (left < 16) left = 16;
 
-    let top = rect.bottom + 2;
-    if (top + 360 > window.innerHeight && rect.top > 360) {
-      top = rect.top - 360 - 2;
-    }
-
-    popover.style.width = `${popoverWidth}px`;
-    popover.style.left = `${left}px`;
     popover.style.top = `${top}px`;
-
+    popover.style.visibility = 'visible';
+    
     requestAnimationFrame(() => {
       popover.style.opacity = '1';
-      popover.style.transform = 'translateY(0)';
     });
   }
 }
@@ -884,21 +912,25 @@ function hideDocHoverPopover(force = false) {
 
     if (overlay) {
       overlay.style.opacity = '0';
-      setTimeout(() => { overlay.style.display = 'none'; }, 200);
+      setTimeout(() => { overlay.style.display = 'none'; }, 240);
     }
 
     if (popover) {
-      popover.style.opacity = '0';
       if (popover.classList.contains('mobile-sheet')) {
         popover.classList.remove('sheet-show');
+        setTimeout(() => {
+          if (!popover.classList.contains('sheet-show')) {
+            popover.style.display = 'none';
+          }
+        }, 280);
       } else {
-        popover.style.transform = 'translateY(6px)';
+        popover.style.opacity = '0';
+        setTimeout(() => {
+          if (popover.style.opacity === '0') {
+            popover.style.display = 'none';
+          }
+        }, 200);
       }
-      setTimeout(() => {
-        if (popover.style.opacity === '0') {
-          popover.style.display = 'none';
-        }
-      }, 200);
     }
   };
 
@@ -909,8 +941,11 @@ function hideDocHoverPopover(force = false) {
   }
 }
 
-function toggleDocHoverPopover(event, docId) {
-  event.stopPropagation();
+function handleDocDetailClick(event, docId) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
   const popover = document.getElementById('doc-hover-popover');
   if (popover && popover.style.display === 'flex' && activeHoverDocId === docId && isPopoverPinned) {
     hideDocHoverPopover(true);
@@ -919,9 +954,21 @@ function toggleDocHoverPopover(event, docId) {
   }
 }
 
+function handleDocDetailMouseEnter(event, docId) {
+  if (isMobileDevice()) return;
+  showDocHoverPopover(event, docId, false);
+}
+
+function handleDocDetailMouseLeave(event) {
+  if (isMobileDevice()) return;
+  hideDocHoverPopover(false);
+}
+
 window.showDocHoverPopover = showDocHoverPopover;
 window.hideDocHoverPopover = hideDocHoverPopover;
-window.toggleDocHoverPopover = toggleDocHoverPopover;
+window.handleDocDetailClick = handleDocDetailClick;
+window.handleDocDetailMouseEnter = handleDocDetailMouseEnter;
+window.handleDocDetailMouseLeave = handleDocDetailMouseLeave;
 
 // ==================== 单据识别管理 (Uploaded Docs) ====================
 async function loadUploadedDocs() {
@@ -960,17 +1007,18 @@ async function loadUploadedDocs() {
               <div style="margin-bottom:6px; display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
                 <span style="margin-right:2px;">${cfg.icon}</span>
                 <span class="badge ${cfg.badge}">${cfg.name}</span>
-                <strong style="color:#0f172a; font-size:0.95rem; cursor:pointer;" 
-                        onclick="toggleDocHoverPopover(event, '${doc.id}')"
-                        onmouseenter="showDocHoverPopover(event, '${doc.id}', false)" 
-                        onmouseleave="hideDocHoverPopover(false)">${escapeHtml(doc.title)}</strong>
+                <strong class="doc-detail-trigger" role="button" tabindex="0"
+                        style="color:#0f172a; font-size:0.95rem; cursor:pointer;" 
+                        onclick="handleDocDetailClick(event, '${doc.id}')"
+                        onmouseenter="handleDocDetailMouseEnter(event, '${doc.id}')" 
+                        onmouseleave="handleDocDetailMouseLeave(event)">${escapeHtml(doc.title)}</strong>
                 <span style="font-size:0.85rem; color:#64748b;">📅 ${doc.event_date}</span>
                 ${hospBadge}
-                <button type="button" class="doc-detail-tag" 
-                        onclick="toggleDocHoverPopover(event, '${doc.id}')"
-                        onmouseenter="showDocHoverPopover(event, '${doc.id}', false)" 
-                        onmouseleave="hideDocHoverPopover(false)"
-                        title="点击锁定查看或悬停预览详细数据">详情</button>
+                <button type="button" class="doc-detail-tag doc-detail-trigger" 
+                        onclick="handleDocDetailClick(event, '${doc.id}')"
+                        onmouseenter="handleDocDetailMouseEnter(event, '${doc.id}')" 
+                        onmouseleave="handleDocDetailMouseLeave(event)"
+                        title="查看详细数据">详情</button>
               </div>
               <div style="font-size:0.9rem; color:#475569; line-height:1.4;">${escapeHtml(doc.summary)}</div>
             </div>
