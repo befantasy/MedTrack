@@ -94,8 +94,8 @@ const TimelineModule = {
               </div>
             </div>
             
-            <p style="color:#475569; font-size:0.9rem; margin-top:6px;">
-              ${escapeHtml(item.summary)}
+            <p style="color:#475569; font-size:0.9rem; margin-top:6px; line-height:1.5;">
+              ${formatSummaryWithHighlights(item.summary)}
             </p>
             
             ${extraHtml}
@@ -119,4 +119,41 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+function formatSummaryWithHighlights(text) {
+  if (!text) return '';
+  let safe = escapeHtml(text);
+
+  // 1. 如果存在明确的【异常指标】...。或【异常】...。前缀块，将其高亮为柔和红底加粗红字
+  safe = safe.replace(/(【异常指标】[\s\S]*?(?:。|$)|【异常】[\s\S]*?(?:。|$))/g, (match) => {
+    return `<span style="color:#dc2626; font-weight:600; background:#fef2f2; padding:3px 7px; border-radius:4px; display:inline-block; margin:2px 0; border:1px solid #fecaca;">${match}</span>`;
+  });
+
+  // 2. 对包含异常关键词的分句进行标红高亮
+  const abnormalKeywords = /(↑|↓|偏高|偏低|轻度偏高|明显偏高|异常|阳性|强阳性|弱阳性|突变|超出参考|转移|进展|恶性)/;
+  const normalExclusions = /(均在正常|未见异常|正常参考|正常范围|阴性\(-?\))/;
+
+  const segments = safe.split(/(，|；|。|,|;|\.)/);
+  let result = '';
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    if (/^[，；。;,]$/.test(seg)) {
+      result += seg;
+      continue;
+    }
+    if (seg.includes('<span') || seg.includes('</span>')) {
+      result += seg;
+      continue;
+    }
+    if (abnormalKeywords.test(seg) && !normalExclusions.test(seg)) {
+      result += `<span style="color:#dc2626; font-weight:600;">${seg}</span>`;
+    } else {
+      result += seg;
+    }
+  }
+
+  return result;
+}
+
+window.escapeHtml = escapeHtml;
+window.formatSummaryWithHighlights = formatSummaryWithHighlights;
 window.TimelineModule = TimelineModule;

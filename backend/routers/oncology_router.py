@@ -177,7 +177,45 @@ def delete_medical_record(id: int, current_user: models.User = Depends(get_curre
         raise HTTPException(status_code=404, detail="随访记录未找到")
     db.delete(item)
     db.commit()
-    return {"message": "删除成功"}
+def build_lab_summary(lab, abnormal_items_obj) -> str:
+    ai_sum = (lab.ai_summary or "").strip()
+    if not abnormal_items_obj:
+        return ai_sum or f"共包含 {len(lab.items)} 项检验指标，均在正常参考范围内。"
+
+    # 构建异常指标的具体数值清单
+    abnormal_details = []
+    for it in abnormal_items_obj:
+        name = it.item_name or it.item_code
+        if it.item_code and it.item_code.upper() not in name.upper():
+            display_name = f"{name}({it.item_code})"
+        else:
+            display_name = name
+
+        val = it.value if it.value is not None else (it.value_text or "-")
+        unit_str = f" {it.unit}" if it.unit else ""
+        arrow = "↑" if it.status == "HIGH" else ("↓" if it.status == "LOW" else "")
+        status_desc = "偏高" if it.status == "HIGH" else ("偏低" if it.status == "LOW" else "异常")
+        ref_str = f", 参考:{it.ref_range}" if it.ref_range else ""
+        abnormal_details.append(f"{display_name} {val}{unit_str} ({arrow}{status_desc}{ref_str})")
+
+    abnormal_str = "【异常指标】" + "；".join(abnormal_details) + "。"
+
+    if not ai_sum:
+        return abnormal_str
+
+    # 检查已有的 ai_summary 是否已经明确标注了该异常项的测定数值
+    has_values = False
+    for it in abnormal_items_obj:
+        val_str = str(it.value) if it.value is not None else it.value_text
+        if val_str and val_str in ai_sum:
+            has_values = True
+            break
+
+    if has_values:
+        return ai_sum
+    else:
+        return f"{abnormal_str} {ai_sum}"
+
 
 # ==================== 全病程治疗全景时间轴 (Swimlane Timeline) ====================
 @router.get("/timeline", response_model=List[schemas.TimelineEvent])
@@ -252,8 +290,9 @@ def get_full_timeline(
     # 5. 化验检验
     for lab in db.query(models.LabReport).filter(models.LabReport.user_id == user_id).all():
         item_count = len(lab.items)
-        abnormal_items = [it.item_code for it in lab.items if it.status in ("HIGH", "LOW", "ABNORMAL")]
-        badge_text = f"{len(abnormal_items)}项异常" if abnormal_items else "指标平稳"
+        abnormal_items_obj = [it for it in lab.items if it.status in ("HIGH", "LOW", "ABNORMAL")]
+        abnormal_codes = [it.item_code for it in abnormal_items_obj]
+        badge_text = f"{len(abnormal_codes)}项异常" if abnormal_codes else "指标平稳"
         items_data = [
             {
                 "name": it.item_name,
@@ -266,6 +305,7 @@ def get_full_timeline(
             }
             for it in lab.items
         ]
+        summary_text = build_lab_summary(lab, abnormal_items_obj)
         events.append(schemas.TimelineEvent(
             id=f"lab_{lab.id}",
             event_date=lab.report_date,
@@ -273,10 +313,10 @@ def get_full_timeline(
             category_label="化验检验",
             title=lab.report_type or "化验单",
             badge=badge_text,
-            summary=lab.ai_summary or f"共包含 {item_count} 项检验指标",
+            summary=summary_text,
             details={
                 "hospital": lab.hospital,
-                "abnormal_codes": abnormal_items,
+                "abnormal_codes": abnormal_codes,
                 "items": items_data
             }
         ))

@@ -204,32 +204,52 @@ class AIExtractorService:
     def _get_prompt_for_type(self, doc_type: str) -> str:
         if doc_type == "lab":
             return """
-请识别分析化验单/检验报告单，重点提取血常规、生化肝肾功、电解质、血糖以及肿瘤标志物（如CEA, CA199, CA125, CA153, AFP, CYFRA21-1, NSE, PSA等）。
-请严格按以下 JSON 结构输出：
+你是一名资深肿瘤科与临床检验医学专家。请精准识别分析检验化验单，重点提取血常规五分类、生化肝肾功能、电解质、血糖、凝血以及肿瘤标志物全套（包括但不限于 CEA, CA199, CA125, CA153, AFP, CYFRA21-1, NSE, SCC, PSA, CA72-4, 铁蛋白等）。
+
+【重要核心要求】：
+1. 提炼的 ai_summary 必须极其严谨、结构化且具备最高临床参考价值！
+   - 对于所有出现“偏高(↑)”、“偏低(↓)”或“异常/阳性”的指标，必须优先、明确列出：指标中文全称及英文代码、具体实测数值、计量单位、参考区间以及偏高/偏低判定（例如：“糖链抗原125(CA125) 45.2 U/mL (↑轻度偏高, 参考:0-35)、糖链抗原19-9(CA199) 58.1 U/mL (↑偏高, 参考:0-37)”）。
+   - 严禁模糊概括（禁止只说偏高偏低而省略数值！必须列出具体测定值）。
+   - 异常指标列举完毕后，紧接着对其余正常指标做简要概括（例如：“；其余肿瘤标志物及生化指标均在正常参考范围内。”）。
+   - 若全部指标均正常，明确写为：“各项检验指标均在正常参考范围内，未见异常波动。”
+2. items 数组中必须对化验单的每一项进行准确结构化提取：
+   - 精准识别化验单原件上的异常提示标记（如 ↑、↓、H、L、+、阳性、弱阳性等）。
+   - status 字段必须严格判定：正常为 "NORMAL"，偏高为 "HIGH"，偏低为 "LOW"，定性阳性/可疑为 "ABNORMAL"。
+   - 提取纯数值 value（浮点数）与原始文本 value_text、单位 unit、参考下限 ref_min、参考上限 ref_max、参考区间文本 ref_range。
+
+请严格按以下 JSON 结构输出，不要包含任何 markdown 之外的解释：
 {
-  "report_type": "化验单类型 (如: 肿瘤标志物全套 / 血常规五分类 / 肝肾功能)",
+  "report_type": "化验单类型 (如: 肿瘤标志物全套 / 血常规五分类 / 肝肾功能综合)",
   "report_date": "检验日期 (YYYY-MM-DD)",
   "hospital": "医院名称",
-  "ai_summary": "一两句话总结本次化验的核心异常指标",
+  "ai_summary": "结构化医学总结，必须优先列出所有异常指标名称、具体测定数值、单位与参考区间",
   "items": [
     {
       "item_name": "指标中文全称 (如: 癌胚抗原)",
-      "item_code": "通用英文字母缩写 (如: CEA, WBC, PLT, GLU, ALT, AST, Cr, UA)",
+      "item_code": "通用英文字母缩写 (如: CEA, WBC, PLT, GLU, ALT, AST, Cr, UA, CA125, CA199)",
       "category": "类别 (可选: tumor_marker, safety_toxicity, chronic, other)",
-      "value": 5.8, // 纯浮点数数值，无法解析为数字的设为 null
-      "value_text": "5.8", // 原始字符
-      "unit": "ng/mL", // 单位
-      "ref_min": 0.0, // 参考下限数值
-      "ref_max": 5.0, // 参考上限数值
-      "ref_range": "0-5.0", // 参考区间原文
-      "status": "HIGH" // 可选: NORMAL(正常), HIGH(偏高), LOW(偏低), ABNORMAL(异常)
+      "value": 5.8,
+      "value_text": "5.8",
+      "unit": "ng/mL",
+      "ref_min": 0.0,
+      "ref_max": 5.0,
+      "ref_range": "0-5.0",
+      "status": "HIGH"
     }
   ]
 }
 """
         elif doc_type == "imaging":
             return """
-请分析医学影像报告（CT / 增强CT / MRI / PET-CT / 超声 / 骨扫描）：
+你是一名资深放射影像科专家。请精准识别分析医学影像报告（CT / 增强CT / MRI / PET-CT / 超声 / 骨扫描 / X线）：
+
+【重要核心要求】：
+1. 详细客观归纳 findings（检查所见）：包含原发病灶位置、最大长短径尺寸（mm/cm）、形态密度/信号强化特征、各引流区淋巴结大小、胸腹水、远处脏器（肝、肺、骨、脑等）是否有可疑转移结节。
+2. 完整提炼 impression（影像诊断结论）：
+   - 必须重点突显所有阳性/可疑异常病变（明确标注“右肺占位”、“肝多发低密度灶疑转移”、“纵隔淋巴结肿大”等具体异常）；
+   - 如果报告中有与既往检查的对比，必须提炼 RECIST 评估倾向（如：原发灶缩小/稳定/增大，评为 PR部分缓解 / SD疾病稳定 / PD疾病进展 / CR完全缓解）。
+3. target_lesions 数组提取所有测量了具体尺寸的靶病灶部位、具体尺寸与变化。
+
 请严格按以下 JSON 结构输出：
 {
   "modality": "检查类别 (如: 胸部平扫加增强CT / 颅脑增强MRI / 全身PET-CT)",
@@ -238,35 +258,42 @@ class AIExtractorService:
   "hospital": "医院名称",
   "target_lesions": [
     {
-      "site": "靶病灶部位 (如: 右肺下叶背段)",
-      "size": "当前病灶尺寸 (如: 14mm x 11mm)",
-      "status": "变化描述 (如: 较前片略有缩小)"
+      "site": "靶病灶部位 (如: 右肺下叶背段结节)",
+      "size": "当前病灶具体尺寸 (如: 14mm x 11mm)",
+      "status": "病灶变化 (如: 较前片缩小 / 新发病灶 / 保持稳定)"
     }
   ],
-  "recist_evaluation": "RECIST疗效初步评估 (可选: PR部分缓解 / SD疾病稳定 / PD疾病进展 / CR完全缓解 / 未明确对比)",
-  "findings": "检查所见详细归纳",
-  "impression": "影像学诊断结论完整摘录"
+  "recist_evaluation": "RECIST疗效评估 (PR部分缓解 / SD疾病稳定 / PD疾病进展 / CR完全缓解 / 未明确对比)",
+  "findings": "检查所见详细客观记录（包含原发灶、转移灶、各器官结节具体尺寸数据）",
+  "impression": "影像学诊断结论完整摘录，重点标注阳性/异常病变与结论"
 }
 """
         elif doc_type == "pathology":
             return """
-请分析病理诊断报告与分子基因检测报告单：
+你是一名资深肿瘤病理学与分子遗传学专家。请精准分析病理诊断报告与分子基因检测报告单：
+
+【重要核心要求】：
+1. histological_diagnosis（病理学明确诊断）：必须完整保留肿瘤组织学类型、分化程度、浸润深度、脉管癌栓/神经侵犯、切缘性质、清扫淋巴结阳性转移枚数（如: 2/18）。
+2. ihc_markers（免疫组化）：详细列出所有免疫组化指标的阴阳性或量化表达结果（如 ER、PR、HER2(0/1+/2+/3+)、Ki-67增殖指数(如: 30%)、PD-L1 TPS/CPS、CK7、TTF-1、Napsin A等）。
+3. genetic_testing（基因/靶向突变）：提取具体突变位点或融合状态（如 EGFR 19-del缺失突变、EGFR L858R、ALK融合、KRAS G12D、ROS1、MET 14跳跃突变、BRAF V600E等，注明突变丰度或阴/阳性判定）。
+
 请严格按以下 JSON 结构输出：
 {
-  "sample_type": "标本类型 (手术切除 / 穿刺活检 / 支气管镜活检 / 细胞学)",
+  "sample_type": "标本类型 (手术切除标本 / 经皮穿刺活检 / 支气管镜活检 / 胸水细胞学)",
   "sample_site": "取材部位 (如: 右肺中叶占位 / 纵隔淋巴结)",
   "report_date": "病理报告日期 (YYYY-MM-DD)",
   "hospital": "医院名称",
-  "histological_diagnosis": "病理学明确诊断 (如: (右肺下叶)浸润性腺癌，腺泡型为主伴乳头状结构)",
-  "differentiation": "分化程度 (高分化 / 中分化 / 低分化)",
+  "histological_diagnosis": "病理组织学明确诊断（包括肿瘤类型、浸润程度、切缘、淋巴结等关键指标）",
+  "differentiation": "分化程度 (高分化 / 中分化 / 低分化 / 未分化)",
   "ihc_markers": {
     "CK7": "阳性(+)",
     "TTF-1": "阳性(+)",
     "Napsin A": "阳性(+)",
+    "Ki-67": "热区30%阳性",
     "P40": "阴性(-)"
   },
   "genetic_testing": {
-    "EGFR": "第19号外显子缺失突变 (19-del)",
+    "EGFR": "第19号外显子缺失突变 (19-del, 丰度32.4%)",
     "ALK": "阴性 (D5F3)",
     "KRAS": "野生型",
     "PD-L1": "TPS=60% (强阳性)"
@@ -304,7 +331,7 @@ class AIExtractorService:
                 "report_type": "肿瘤标志物与血常规生化综合检验",
                 "report_date": "2026-03-10",
                 "hospital": "肿瘤中心检验科",
-                "ai_summary": "癌胚抗原(CEA)与CA19-9轻度偏高，白细胞与血小板正常，肝肾功能指标良好。",
+                "ai_summary": "【异常指标】癌胚抗原(CEA) 6.8 ng/mL (↑轻度偏高, 参考:0-5.0)；糖类抗原19-9(CA199) 42.5 U/mL (↑偏高, 参考:0-37.0)；空腹血糖(GLU) 6.4 mmol/L (↑偏高, 参考:3.9-6.1)。其余血常规五分类与肝肾功能指标均在正常参考范围内。",
                 "items": [
                     {"item_name": "癌胚抗原", "item_code": "CEA", "category": "tumor_marker", "value": 6.8, "value_text": "6.8", "unit": "ng/mL", "ref_min": 0.0, "ref_max": 5.0, "ref_range": "0-5.0", "status": "HIGH"},
                     {"item_name": "糖类抗原19-9", "item_code": "CA199", "category": "tumor_marker", "value": 42.5, "value_text": "42.5", "unit": "U/mL", "ref_min": 0.0, "ref_max": 37.0, "ref_range": "0-37.0", "status": "HIGH"},

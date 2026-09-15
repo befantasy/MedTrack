@@ -760,24 +760,39 @@ function showDocHoverPopover(event, docId, isClick = false) {
     const items = doc.details?.items || [];
     if (items.length > 0) {
       const rows = items.map(it => {
+        const isAbnormal = it.status === 'HIGH' || it.status === 'LOW' || it.status === 'ABNORMAL';
         let valColor = '#0f172a';
         let arrow = '';
+        let statusBadge = '';
+        let rowBg = 'transparent';
+        let nameStyle = 'color:#334155; font-weight:500;';
+
         if (it.status === 'HIGH') {
-          valColor = '#ef4444';
+          valColor = '#dc2626';
           arrow = ' ↑';
+          statusBadge = `<span style="background:#fee2e2; color:#dc2626; font-size:0.75rem; padding:1px 5px; border-radius:3px; margin-left:4px; font-weight:600;">↑偏高</span>`;
+          rowBg = '#fef2f2';
+          nameStyle = 'color:#dc2626; font-weight:600;';
         } else if (it.status === 'LOW') {
-          valColor = '#f59e0b';
+          valColor = '#dc2626';
           arrow = ' ↓';
+          statusBadge = `<span style="background:#fee2e2; color:#dc2626; font-size:0.75rem; padding:1px 5px; border-radius:3px; margin-left:4px; font-weight:600;">↓偏低</span>`;
+          rowBg = '#fef2f2';
+          nameStyle = 'color:#dc2626; font-weight:600;';
         } else if (it.status === 'ABNORMAL') {
-          valColor = '#ef4444';
+          valColor = '#dc2626';
+          statusBadge = `<span style="background:#fee2e2; color:#dc2626; font-size:0.75rem; padding:1px 5px; border-radius:3px; margin-left:4px; font-weight:600;">异常</span>`;
+          rowBg = '#fef2f2';
+          nameStyle = 'color:#dc2626; font-weight:600;';
         }
+
         const valDisp = it.value !== null && it.value !== undefined ? it.value : (it.value_text || '-');
         return `
-          <tr style="border-bottom:1px solid #f1f5f9;">
-            <td style="padding:7px 10px; font-weight:500; color:#334155;">${escapeHtml(it.name || it.code)}</td>
-            <td style="padding:7px 10px; color:${valColor}; font-weight:600; text-align:right;">${valDisp}${arrow}</td>
-            <td style="padding:7px 10px; color:#64748b; font-size:0.8rem;">${escapeHtml(it.unit || '')}</td>
-            <td style="padding:7px 10px; color:#94a3b8; font-size:0.8rem;">${escapeHtml(it.ref_range || '')}</td>
+          <tr style="border-bottom:1px solid #f1f5f9; background:${rowBg};">
+            <td style="padding:7px 10px; ${nameStyle}">${escapeHtml(it.name || it.code)}${statusBadge}</td>
+            <td style="padding:7px 10px; color:${valColor}; font-weight:700; text-align:right;">${valDisp}${arrow}</td>
+            <td style="padding:7px 10px; color:${isAbnormal ? '#dc2626' : '#64748b'}; font-size:0.8rem;">${escapeHtml(it.unit || '')}</td>
+            <td style="padding:7px 10px; color:${isAbnormal ? '#991b1b' : '#94a3b8'}; font-size:0.8rem;">${escapeHtml(it.ref_range || '')}</td>
           </tr>
         `;
       }).join('');
@@ -970,6 +985,43 @@ window.handleDocDetailClick = handleDocDetailClick;
 window.handleDocDetailMouseEnter = handleDocDetailMouseEnter;
 window.handleDocDetailMouseLeave = handleDocDetailMouseLeave;
 
+// 异常摘要标红高亮辅助函数
+function formatSummaryWithHighlights(text) {
+  if (!text) return '';
+  let safe = escapeHtml(text);
+
+  // 1. 如果存在明确的【异常指标】...。或【异常】...。前缀块，将其高亮为柔和红底加粗红字
+  safe = safe.replace(/(【异常指标】[\s\S]*?(?:。|$)|【异常】[\s\S]*?(?:。|$))/g, (match) => {
+    return `<span style="color:#dc2626; font-weight:600; background:#fef2f2; padding:3px 7px; border-radius:4px; display:inline-block; margin:2px 0; border:1px solid #fecaca;">${match}</span>`;
+  });
+
+  // 2. 对包含异常关键词的分句进行标红高亮
+  const abnormalKeywords = /(↑|↓|偏高|偏低|轻度偏高|明显偏高|异常|阳性|强阳性|弱阳性|突变|超出参考|转移|进展|恶性)/;
+  const normalExclusions = /(均在正常|未见异常|正常参考|正常范围|阴性\(-?\))/;
+
+  const segments = safe.split(/(，|；|。|,|;|\.)/);
+  let result = '';
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    if (/^[，；。;,]$/.test(seg)) {
+      result += seg;
+      continue;
+    }
+    if (seg.includes('<span') || seg.includes('</span>')) {
+      result += seg;
+      continue;
+    }
+    if (abnormalKeywords.test(seg) && !normalExclusions.test(seg)) {
+      result += `<span style="color:#dc2626; font-weight:600;">${seg}</span>`;
+    } else {
+      result += seg;
+    }
+  }
+
+  return result;
+}
+window.formatSummaryWithHighlights = formatSummaryWithHighlights;
+
 // ==================== 单据识别管理 (Uploaded Docs) ====================
 async function loadUploadedDocs() {
   const container = document.getElementById('uploaded-docs-list');
@@ -1016,7 +1068,7 @@ async function loadUploadedDocs() {
                 <span style="font-size:0.85rem; color:#64748b;">📅 ${doc.event_date}</span>
                 ${hospBadge}
               </div>
-              <div style="font-size:0.9rem; color:#475569; line-height:1.4;">${escapeHtml(doc.summary)}</div>
+              <div style="font-size:0.9rem; color:#475569; line-height:1.5;">${formatSummaryWithHighlights(doc.summary)}</div>
             </div>
             <div class="uploaded-doc-actions" style="display:flex; flex-direction:column; gap:6px; flex-shrink:0;">
               <button type="button" class="btn btn-secondary btn-sm doc-detail-trigger" 
@@ -1027,7 +1079,7 @@ async function loadUploadedDocs() {
                       title="点击或悬停查看详细数据">📋 详情</button>
               <button type="button" class="btn btn-secondary btn-sm" 
                       style="color:#334155; border-color:#cbd5e1; background:#ffffff;" 
-                      onclick="openEditDocModal('${doc.event_type}', ${realId})">✏️ 编辑校对</button>
+                      onclick="openEditDocModal('${doc.event_type}', ${realId})">✏️ 编辑</button>
               <button type="button" class="btn btn-secondary btn-sm" 
                       style="color:#ef4444; border-color:#fee2e2; background:#fef2f2;" 
                       onclick="deleteUploadedDoc('${doc.event_type}', ${realId})">🗑️ 删除</button>
@@ -2402,7 +2454,7 @@ async function openEditDocModal(type, id) {
   
   try {
     if (type === 'lab') {
-      title.textContent = '✏️ 编辑校对化验单';
+      title.textContent = '✏️ 编辑化验单';
       const list = await API.getLabReports();
       const doc = list.find(d => d.id == id);
       if(!doc) throw new Error("找不到该记录");
@@ -2436,7 +2488,7 @@ async function openEditDocModal(type, id) {
         </div>
       `;
     } else if (type === 'imaging') {
-      title.textContent = '✏️ 编辑校对影像报告';
+      title.textContent = '✏️ 编辑影像报告';
       const list = await API.getImagingReports();
       const doc = list.find(d => d.id == id);
       if(!doc) throw new Error("找不到该记录");
@@ -2458,7 +2510,7 @@ async function openEditDocModal(type, id) {
         </div>
       `;
     } else if (type === 'pathology') {
-      title.textContent = '✏️ 编辑校对病理报告';
+      title.textContent = '✏️ 编辑病理报告';
       const list = await API.getPathologies();
       const doc = list.find(d => d.id == id);
       if(!doc) throw new Error("找不到该记录");
